@@ -23,3 +23,4 @@ Write-Host 'PC Toolkit desinstalado.' -ForegroundColor Green
 if (Get-Module -ListAvailable AudioDeviceCmdlets) {
     Write-Host '(El modulo AudioDeviceCmdlets sigue instalado; quitalo con: Uninstall-Module AudioDeviceCmdlets)'
 }
+Start-Sleep -Seconds 3   # que se pueda leer si se lanzo desde Configuracion > Aplicaciones

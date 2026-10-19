@@ -13,6 +13,7 @@ $Root    = Join-Path $env:LOCALAPPDATA 'PcToolkit'
 $AppDir  = Split-Path $PSScriptRoot -Parent
 $RepoRaw = 'https://raw.githubusercontent.com/ikerlorente11/pc-toolkit/main'
 $RunKey  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$AppsKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PcToolkit'
 
 function Get-ToolkitRoot { $Root }
 
@@ -143,6 +144,21 @@ function Register-Manager([bool]$Autostart = $true) {
     $lnk.Description  = 'Gestor de utilidades de PC Toolkit'
     $lnk.Save()
     Set-ManagerAutostart $Autostart
+
+    # Entrada en Configuracion > Aplicaciones para desinstalar como cualquier programa
+    $uninstall = Join-Path $AppDir 'uninstall.ps1'
+    New-Item $AppsKey -Force | Out-Null
+    $strings = @{
+        DisplayName     = 'PC Toolkit'
+        DisplayVersion  = Get-ToolkitVersion
+        Publisher       = 'ikerlorente11'
+        DisplayIcon     = Join-Path $AppDir 'assets\pc-toolkit.ico'
+        InstallLocation = $Root
+        URLInfoAbout    = 'https://github.com/ikerlorente11/pc-toolkit'
+        UninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstall`""
+    }
+    foreach ($name in $strings.Keys) { New-ItemProperty $AppsKey -Name $name -Value $strings[$name] -PropertyType String -Force | Out-Null }
+    foreach ($name in 'NoModify', 'NoRepair') { New-ItemProperty $AppsKey -Name $name -Value 1 -PropertyType DWord -Force | Out-Null }
 }
 
 function Start-Manager([switch]$Show) {
@@ -161,6 +177,7 @@ function Unregister-Manager {
     Stop-Manager
     Set-ManagerAutostart $false
     Remove-Item (Get-StartMenuShortcut) -ErrorAction SilentlyContinue
+    Remove-Item $AppsKey -Recurse -ErrorAction SilentlyContinue
 }
 
 Export-ModuleMember -Function *

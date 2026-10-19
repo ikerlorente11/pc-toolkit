@@ -61,7 +61,8 @@ $legacyFound = @(foreach ($id in $legacy.Keys) {
     }
 })
 
-# 4. Que herramientas instalar
+# 4. Que herramientas instalar ("-Tools a,b" llega como un solo texto si se lanza con -File)
+$Tools = @($Tools | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim() })
 if ($Update) {
     $selected = @($all | Where-Object { (Get-ToolState $_) -ne 'NotInstalled' })
 } elseif ($Tools -contains 'all') {
