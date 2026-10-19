@@ -22,8 +22,18 @@ function script:Test-AudioEnabled($Device, $Config) {
     if ($Config.Auto.ContainsKey($Device.Id)) { $Config.Auto[$Device.Id] } else { $Device.AutoByDefault }
 }
 
-# Conectados y habilitados: los que salen en el cambio rápido y entre los que salta el atajo
-function script:Get-EnabledAudioDevices {
+# Habilitados: los del cambio rápido y entre los que salta el atajo. Por defecto solo los conectados;
+# con -IncludeDisconnected también los apagados (para mostrarlos en gris), conectados primero.
+function script:Get-EnabledAudioDevices([switch]$IncludeDisconnected) {
     $cfg = Get-AudioConfig
-    @([PcToolkit.Audio.Endpoints]::List(0) | Where-Object { -not $_.IsHandsFree -and (Test-AudioEnabled $_ $cfg) })
+    @([PcToolkit.Audio.Endpoints]::List(0, [bool]$IncludeDisconnected) |
+        Where-Object { -not $_.IsHandsFree -and (Test-AudioEnabled $_ $cfg) } |
+        Sort-Object { -not $_.IsActive })
+}
+
+# Firma para repintar: cambia al encender/apagar algo, cambiar el que suena o tocar la configuración
+function script:Get-AudioSignature {
+    $cfgPath = Join-Path $script:AudioDataDir 'config.json'
+    $stamp = if (Test-Path $cfgPath) { (Get-Item $cfgPath).LastWriteTimeUtc.Ticks }
+    (([PcToolkit.Audio.Endpoints]::List(0) | ForEach-Object { "$($_.Id)$($_.IsDefault)" }) -join ';') + "|$stamp"
 }

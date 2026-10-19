@@ -1,18 +1,15 @@
 ﻿# home.ps1 - Cambio rápido en la tarjeta de Audio AutoSwitch de la portada del gestor.
 # La carga el gestor igual que settings.ps1 y muestra lo que devuelve debajo de la tarjeta.
 # Una sola fila con el que suena; al pulsarla se despliega un menú flotante con los dispositivos
-# habilitados conectados para elegir directamente. La tarjeta mide siempre lo mismo.
+# habilitados (los apagados en gris) para elegir directamente. La tarjeta mide siempre lo mismo.
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 # Repintar la portada al encender/apagar algo, cambiar el que suena o (des)habilitar dispositivos
-$script:HomeSignatures['audio-autoswitch'] = {
-    $cfgPath = Join-Path $script:AudioDataDir 'config.json'
-    $stamp = if (Test-Path $cfgPath) { (Get-Item $cfgPath).LastWriteTimeUtc.Ticks }
-    (([PcToolkit.Audio.Endpoints]::List(0) | ForEach-Object { "$($_.Id)$($_.IsDefault)" }) -join ';') + "|$stamp"
-}
+$script:HomeSignatures['audio-autoswitch'] = { Get-AudioSignature }
 
-$devices = Get-EnabledAudioDevices
+$all     = Get-EnabledAudioDevices -IncludeDisconnected   # los apagados salen en gris
+$devices = @($all | Where-Object IsActive)
 $current = @([PcToolkit.Audio.Endpoints]::List(0) | Where-Object IsDefault)[0]   # puede no estar habilitado
 $root = New-Ui @'
 <Grid Margin="28,8,0,0">
@@ -40,20 +37,20 @@ $root = New-Ui @'
 $pick = $root.FindName('Pick')
 $menu = $root.FindName('Menu')
 $root.FindName('Name').Text = if ($current) { $current.Name } else { 'Ningún dispositivo de sonido' }
-$root.FindName('Info').Text = switch ($devices.Count) {
-    0       { 'No hay dispositivos habilitados conectados' }
-    1       { 'Sonando  ·  1 habilitado conectado' }
-    default { "Sonando  ·  $_ habilitados conectados" }
-}
-foreach ($d in $devices) {
-    [void]$root.FindName('List').Children.Add((New-ChoiceRow $d.Name '' $d.IsDefault {
+$root.FindName('Info').Text = if (-not $all) { 'No tienes dispositivos habilitados' }
+                              else { "Sonando  ·  $($devices.Count) de $($all.Count) habilitados conectados" }
+foreach ($d in $all) {
+    $detail = if (-not $d.IsActive) { 'Apagado o desconectado' }
+    $row = New-ChoiceRow $d.Name $detail $d.IsDefault {
         param($id)
         [PcToolkit.Audio.Endpoints]::SetDefault($id)
         Update-Page
-    } $d.Id -Compact))
+    } $d.Id -Compact
+    $row.IsEnabled = $d.IsActive   # no se puede cambiar a uno apagado: sale en gris
+    [void]$root.FindName('List').Children.Add($row)
 }
-if (-not $devices) { $root.FindName('Arrow').Visibility = 'Hidden' }
-$pick.IsEnabled = $devices.Count -gt 0
+if (-not $all) { $root.FindName('Arrow').Visibility = 'Hidden' }
+$pick.IsEnabled = $all.Count -gt 0
 $pick.Tag = $menu
 $pick.Add_Click({
     param($s, $e)

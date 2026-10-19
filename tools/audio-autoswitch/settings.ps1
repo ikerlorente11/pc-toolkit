@@ -9,18 +9,22 @@ function script:Get-AudioDevices {
     @([PcToolkit.Audio.Endpoints]::List(0, $true) | Where-Object { -not $_.IsHandsFree } | Sort-Object { -not $_.IsActive }, Name)
 }
 
-# Repintar solo cuando se enciende/apaga algo o cambia el que suena
-$script:PageSignature = { ([PcToolkit.Audio.Endpoints]::List(0) | ForEach-Object { "$($_.Id)$($_.IsDefault)" }) -join ';' }
+# Repintar al encender/apagar algo, cambiar el que suena o tocar la configuración
+$script:PageSignature = { Get-AudioSignature }
 
 $cfg     = Get-AudioConfig
 $devices = Get-AudioDevices
-$active  = @($devices | Where-Object IsActive)
 $panel   = New-Ui '<StackPanel/>'
 
-# 1. Cambio manual entre los conectados
-[void]$panel.Children.Add((New-SectionHeader 'Sonando ahora' 'Pulsa otro para cambiar a mano sin apagar nada.'))
-foreach ($d in $active) {
-    [void]$panel.Children.Add((New-ChoiceRow $d.Name '' $d.IsDefault {
+# 1. Cambio manual entre los habilitados conectados (y el que suene, aunque no lo esté)
+[void]$panel.Children.Add((New-SectionHeader 'Sonando ahora' 'Tus dispositivos habilitados que están conectados. Pulsa uno para que suene.'))
+$playable = @(Get-EnabledAudioDevices)
+$current = @($devices | Where-Object IsDefault)[0]
+if ($current -and $playable.Id -notcontains $current.Id) { $playable = @($current) + $playable }
+if (-not $playable) { [void]$panel.Children.Add((New-Hint 'No hay ningún dispositivo habilitado conectado.')) }
+foreach ($d in $playable) {
+    $detail = if (-not (Test-AudioEnabled $d $cfg)) { 'No está habilitado' }
+    [void]$panel.Children.Add((New-ChoiceRow $d.Name $detail $d.IsDefault {
         param($id)
         [PcToolkit.Audio.Endpoints]::SetDefault($id)
         Update-Page
@@ -37,6 +41,7 @@ foreach ($d in $devices) {
         $c = Get-AudioConfig
         $c.Auto[$id] = $isOn
         Save-AudioConfig $c
+        Update-Page   # que "Sonando ahora" y la portada lo reflejen al momento
     } $d.Id))
 }
 
