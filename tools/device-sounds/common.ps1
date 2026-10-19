@@ -9,9 +9,7 @@ $script:DeviceSoundsData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\device-so
 # Biblioteca: sounds\<id>.wav (WAV PCM, el formato que admite Windows para los sonidos del sistema)
 $script:DeviceSoundLibrary = [ordered]@{
     'desenvainar-espada' = 'Desenvainar espada'
-    'desenvainar-katana' = 'Desenvainar katana'
     'envainar-espada'    = 'Envainar espada'
-    'envainar-espada-2'  = 'Envainar espada 2'
     'yamete-kudasai'     = 'Yamete kudasai'
     'ahh'                = 'Ahh'
     'yiahhh'             = 'Yiahhh'
@@ -36,6 +34,9 @@ function script:Test-DeviceSoundId([string]$Id) { $Id -in 'windows', 'none' -or 
 function script:Get-DeviceSoundsConfig {
     $path = Join-Path $script:DeviceSoundsData 'config.json'
     $c = if (Test-Path $path) { try { Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json } catch {} }
+    # Sonidos de espada de la v1.9.0 que se unificaron: katana -> desenvainar, espada 2 -> envainar
+    $renamed = @{ 'desenvainar-katana' = 'desenvainar-espada'; 'envainar-espada-2' = 'envainar-espada' }
+    foreach ($k in 'Connect', 'Disconnect') { if ($c -and $renamed.ContainsKey([string]$c.$k)) { $c.$k = $renamed[[string]$c.$k] } }
     @{
         Connect    = if (Test-DeviceSoundId $c.Connect) { [string]$c.Connect } else { 'desenvainar-espada' }
         Disconnect = if (Test-DeviceSoundId $c.Disconnect) { [string]$c.Disconnect } else { 'envainar-espada' }

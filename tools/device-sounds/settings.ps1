@@ -49,7 +49,7 @@ function script:New-DeviceSoundSelector([string]$Name, [string]$Current) {
     $pick = $root.FindName('Pick')
     [Windows.Automation.AutomationProperties]::SetName($pick, $(if ($Name -eq 'Connect') { 'Sonido al conectar' } else { 'Sonido al desconectar' }))
     $choose = { param($arg) $parts = $arg -split '\|'; Set-DeviceSound $parts[0] $parts[1] }
-    foreach ($id in @('windows', 'none') + @($script:DeviceSoundLibrary.Keys)) {
+    foreach ($id in @('none', 'windows') + @($script:DeviceSoundLibrary.Keys)) {
         [void]$root.FindName('List').Children.Add((New-ChoiceRow (Get-DeviceSoundLabel $id) '' ($id -eq $Current) $choose "$Name|$id" -Compact))
     }
     $pick.Tag = $root.FindName('Menu')
