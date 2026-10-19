@@ -501,6 +501,15 @@ function Connect-ToolInstall($Card, $Tool) {
     }
 }
 
+# Bloque home.ps1 de la herramienta (p. ej. el selector de audio), o $null si no tiene o falla
+function Get-ToolHomeBlock($Tool) {
+    if (-not $Tool.HasHome -or $busy.ContainsKey($Tool.id)) { return }
+    try {
+        $extra = & { param($path) . $path } (Join-Path $Tool.Dir 'home.ps1')
+        @($extra | Where-Object { $_ -is [Windows.UIElement] })[0]
+    } catch { Write-ManagerLog "ERROR home.ps1 de $($Tool.id): $($_.Exception.Message)" }
+}
+
 # --- Vista de lista: tarjetas anchas con descripción y el bloque home.ps1 de la herramienta ---
 
 function New-InstalledCard($Tool, [string]$State) {
@@ -529,14 +538,8 @@ function New-InstalledCard($Tool, [string]$State) {
     $card.FindName('Status').Text = $status[0]
     $card.FindName('Status').Foreground = $app.Resources[$status[1]]
     Connect-ToolToggle $card.FindName('Toggle') $Tool $State
-    if ($busy.ContainsKey($Tool.id)) {
-        $card.FindName('Extra').Content = New-ProgressBar
-    } elseif ($Tool.HasHome) {
-        try {
-            $extra = & { param($path) . $path } (Join-Path $Tool.Dir 'home.ps1')
-            $card.FindName('Extra').Content = @($extra | Where-Object { $_ -is [Windows.UIElement] })[0]
-        } catch { Write-ManagerLog "ERROR home.ps1 de $($Tool.id): $($_.Exception.Message)" }
-    }
+    if ($busy.ContainsKey($Tool.id)) { $card.FindName('Extra').Content = New-ProgressBar }
+    else { $card.FindName('Extra').Content = Get-ToolHomeBlock $Tool }
     Connect-ToolOpen $card $Tool
     $card
 }
@@ -589,6 +592,11 @@ function New-InstalledTile($Tool, [string]$State) {
     $tile.FindName('Status').Foreground = $app.Resources[$status[1]]
     Connect-ToolToggle $tile.FindName('Toggle') $Tool $State
     if ($busy.ContainsKey($Tool.id)) { $tile.FindName('Extra').Content = New-ProgressBar }
+    else {
+        # En el mosaico, el bloque de portada (selector de audio...) ocupa todo el ancho, sin sangría
+        $block = Get-ToolHomeBlock $Tool
+        if ($block) { $block.Margin = '-8,6,-8,-4'; $tile.FindName('Extra').Content = $block }
+    }
     Connect-ToolOpen $tile $Tool
     $tile
 }
