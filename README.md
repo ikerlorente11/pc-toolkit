@@ -62,8 +62,8 @@ defecto, arranca con Windows.
 
 ### Audio AutoSwitch
 
-- **Cambio rápido**: en la portada del panel, debajo de Audio AutoSwitch, salen los
-  dispositivos conectados; pulsa uno para que suene.
+- **Cambio rápido**: en la portada del panel, debajo de Audio AutoSwitch, sale el
+  dispositivo que suena con flechas ‹ › para pasar al anterior o al siguiente.
 - **Ctrl + Alt + A**: pasa al siguiente dispositivo conectado y muestra un aviso
   abajo en el centro (como el de volumen). Funciona mientras PC Toolkit esté en la bandeja.
 
