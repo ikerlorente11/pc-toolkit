@@ -5,12 +5,11 @@ if (-not ('PcToolkit.KeyboardSound.Player' -as [type])) { Add-Type -Path (Join-P
 $script:KeyboardSoundDir  = $PSScriptRoot
 $script:KeyboardSoundData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\keyboard-sound'
 
-# Sonidos incluidos (sounds\<id>.mp3) y su nombre en el panel
+# Sonidos incluidos (sounds\<id>.mp3 o .wav) y su nombre en el panel
 $script:KeyboardSounds = [ordered]@{
     quack = 'Pato'
     frog  = 'Rana'
-    miau1 = 'Maullido 1'
-    miau2 = 'Maullido 2'
+    miau1 = 'Maullido'
     moan  = 'Gemido'
 }
 
@@ -29,7 +28,10 @@ function script:Save-KeyboardSoundConfig($Config) {
     $Config | ConvertTo-Json | Set-Content (Join-Path $script:KeyboardSoundData 'config.json') -Encoding UTF8
 }
 
-function script:Get-KeyboardSoundFile([string]$Sound) { Join-Path $script:KeyboardSoundDir "sounds\$Sound.mp3" }
+function script:Get-KeyboardSoundFile([string]$Sound) {
+    $wav = Join-Path $script:KeyboardSoundDir "sounds\$Sound.wav"
+    if (Test-Path $wav) { $wav } else { Join-Path $script:KeyboardSoundDir "sounds\$Sound.mp3" }
+}
 
 # Tarea del vigilante: con "Iniciar con Windows" arranca al iniciar sesión; si no, solo cuando se activa.
 # Se respeta si estaba desactivada. Necesita Toolkit.psm1 (New-HiddenTaskAction).
