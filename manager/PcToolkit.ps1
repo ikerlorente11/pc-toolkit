@@ -175,6 +175,7 @@ function Show-Flyout {
 }
 
 function Hide-Flyout {
+    if ($script:capturing) { $script:capturing = $null; $script:captureHint = $null; Update-Hotkeys }
     $win.Hide()
     $script:hiddenAt = Get-Date
 }
@@ -458,7 +459,8 @@ function Show-Home {
         }
         $card.Tag = $t
         [Windows.Automation.AutomationProperties]::SetName($card, $t.name)
-        $card.Add_Click({ param($s, $e) Show-ToolPage $s.Tag.id })
+        # Solo clics en la propia tarjeta: los de su interruptor o su bloque de portada también llegan aquí (burbujean)
+        $card.Add_Click({ param($s, $e) if ($e.OriginalSource -eq $s) { Show-ToolPage $s.Tag.id } })
         [void]$panel.Children.Add($card)
     }
 
@@ -536,6 +538,7 @@ function Show-ToolPage([string]$Id) {
         $settings = & { param($path) . $path } (Join-Path $t.Dir 'settings.ps1')
         foreach ($el in @($settings)) { if ($el -is [Windows.UIElement]) { [void]$panel.Children.Add($el) } }
     }
+    if ($t.hotkey -and $state -ne 'NotInstalled') { [void]$panel.Children.Add((New-HotkeySection $t)) }
     $script:settingsSignature = $script:PageSignature
     $script:PageSignature = { Get-ToolPageSignature }
     $script:lastSignature = Get-ToolPageSignature
@@ -665,9 +668,50 @@ $tray.Visible = $true
 
 # --- Atajos de teclado de las herramientas y aviso flotante ---
 
-$hotkeyStatus = @{}   # id -> 'ok' | 'ocupado' (para mostrarlo en sus ajustes)
+$hotkeyStatus = @{}   # id -> 'ok' | 'ocupado' | 'inactivo' (para mostrarlo en su página)
+$hotkeyActive = @{}   # id -> combinación registrada ahora mismo
 $hotkeys = New-Object GlobalHotkeys
 $hotkeyTools = @($tools | Where-Object { $_.hotkey })
+$HotkeysFile = Join-Path (Get-ToolkitRoot) 'data\hotkeys.json'
+$script:capturing = $null     # id de la herramienta cuyo atajo se está grabando
+$script:captureHint = $null
+
+# Atajos elegidos por el usuario: id -> "Ctrl+Alt+S", o "" si lo ha desactivado
+function Get-HotkeyOverrides {
+    $o = @{}
+    if (Test-Path $HotkeysFile) {
+        try { foreach ($p in (Get-Content $HotkeysFile -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties) { $o[$p.Name] = [string]$p.Value } } catch {}
+    }
+    $o
+}
+
+function Get-ToolHotkey($Tool) {
+    $o = Get-HotkeyOverrides
+    if ($o.ContainsKey($Tool.id)) { $o[$Tool.id] } else { $Tool.hotkey.keys }
+}
+
+function Save-ToolHotkey($Tool, $Keys) {
+    $o = Get-HotkeyOverrides
+    if ($null -eq $Keys -or $Keys -eq $Tool.hotkey.keys) { $o.Remove($Tool.id) } else { $o[$Tool.id] = $Keys }
+    New-Item -ItemType Directory -Force -Path (Split-Path $HotkeysFile) | Out-Null
+    $o | ConvertTo-Json | Set-Content $HotkeysFile -Encoding UTF8
+}
+
+function Format-Hotkey([string]$Keys) { (($Keys -split '\+') | ForEach-Object { $_.Trim() }) -join ' + ' }
+
+# Cambia el atajo ($Keys: combinación, '' para desactivar, $null para el de serie).
+# Si otra aplicación ya lo usa, se queda el anterior y se avisa.
+function Set-ToolHotkey($Tool, $Keys) {
+    $previous = Get-ToolHotkey $Tool
+    Save-ToolHotkey $Tool $Keys
+    Update-Hotkeys
+    if ($hotkeyStatus[$Tool.id] -eq 'ocupado') {
+        $wanted = Get-ToolHotkey $Tool
+        Save-ToolHotkey $Tool $previous
+        Update-Hotkeys
+        Show-Error "$(Format-Hotkey $wanted) ya lo usa otra aplicación. Se mantiene $(Format-Hotkey $previous)."
+    }
+}
 
 function ConvertFrom-HotkeyText([string]$Text) {
     $mods = 0; $vk = 0
@@ -683,22 +727,118 @@ function ConvertFrom-HotkeyText([string]$Text) {
     @($mods, $vk)
 }
 
-# Registra los atajos de las herramientas activas y quita los de las demás
+# Registra los atajos de las herramientas activas (con su combinación actual) y quita los demás.
+# Mientras se graba un atajo nuevo, el de esa herramienta se suelta para poder pulsarlo.
 function Update-Hotkeys {
     for ($i = 0; $i -lt $hotkeyTools.Count; $i++) {
         $t = $hotkeyTools[$i]
-        $want = (Get-ToolState $t) -eq 'Enabled'
-        $has = $hotkeyStatus[$t.id] -eq 'ok'
-        if ($want -and -not $has) {
-            $k = ConvertFrom-HotkeyText $t.hotkey.keys
-            $hotkeyStatus[$t.id] = if ($hotkeys.Register($i + 1, $k[0], $k[1])) { 'ok' } else { 'ocupado' }
-            if ($hotkeyStatus[$t.id] -ne 'ok') { Write-ManagerLog "Atajo $($t.hotkey.keys) de $($t.id) ocupado por otra aplicación" }
-        } elseif (-not $want -and $hotkeyStatus.ContainsKey($t.id)) {
-            if ($has) { $hotkeys.Unregister($i + 1) }
-            $hotkeyStatus.Remove($t.id)
+        $enabled = (Get-ToolState $t) -eq 'Enabled'
+        $want = if ($enabled -and $script:capturing -ne $t.id) { Get-ToolHotkey $t } else { '' }
+        $current = [string]$hotkeyActive[$t.id]
+        if ($current -eq $want -and $hotkeyStatus.ContainsKey($t.id)) { continue }
+        if ($current) { $hotkeys.Unregister($i + 1); $hotkeyActive.Remove($t.id) }
+        if (-not $want) { $hotkeyStatus[$t.id] = 'inactivo'; continue }
+        $k = ConvertFrom-HotkeyText $want
+        if ($hotkeys.Register($i + 1, $k[0], $k[1])) {
+            $hotkeyActive[$t.id] = $want
+            $hotkeyStatus[$t.id] = 'ok'
+        } else {
+            $hotkeyStatus[$t.id] = 'ocupado'
+            Write-ManagerLog "Atajo $want de $($t.id) ocupado por otra aplicación"
         }
     }
 }
+
+function Start-HotkeyCapture($Tool) {
+    $script:capturing = $Tool.id
+    $script:captureHint = $null
+    Update-Hotkeys
+    Update-Page
+}
+
+function Stop-HotkeyCapture {
+    $script:capturing = $null
+    $script:captureHint = $null
+    Update-Hotkeys
+    Update-Page
+}
+
+# Grabar la combinación: Ctrl/Alt/Win (+ Shift opcional) + letra, número o tecla F
+$win.Add_PreviewKeyDown({
+    param($s, $e)
+    if (-not $script:capturing) { return }
+    $e.Handled = $true
+    $key = [string]$(if ($e.Key -eq 'System') { $e.SystemKey } else { $e.Key })
+    if ($key -eq 'Escape') { Stop-HotkeyCapture; return }
+    if ($key -match '^(Left|Right)(Ctrl|Alt|Shift)$|^[LR]Win$') { return }
+    $name = if ($key -match '^[A-Z]$') { $key } elseif ($key -match '^D(\d)$') { $Matches[1] } elseif ($key -match '^F(\d{1,2})$') { $key }
+    $mods = [Windows.Input.Keyboard]::Modifiers
+    $parts = @()
+    if ($mods -band [Windows.Input.ModifierKeys]::Control) { $parts += 'Ctrl' }
+    if ($mods -band [Windows.Input.ModifierKeys]::Alt)     { $parts += 'Alt' }
+    if ($mods -band [Windows.Input.ModifierKeys]::Shift)   { $parts += 'Shift' }
+    if ($mods -band [Windows.Input.ModifierKeys]::Windows) { $parts += 'Win' }
+    if (-not $name -or -not ($parts | Where-Object { $_ -ne 'Shift' })) {
+        $script:captureHint = 'Usa Ctrl, Alt o Win junto a una letra, un número o una tecla F.'
+        Update-Page
+        return
+    }
+    $tool = $tools | Where-Object id -eq $script:capturing
+    $script:capturing = $null
+    $script:captureHint = $null
+    Set-ToolHotkey $tool (($parts + $name) -join '+')
+    Update-Page
+})
+
+# Sección "Atajo de teclado" de la página de cualquier herramienta con "hotkey" en tool.json
+function New-HotkeySection($Tool) {
+    $p = New-Ui '<StackPanel/>'
+    [void]$p.Children.Add((New-SectionHeader 'Atajo de teclado' $Tool.hotkey.description))
+    $card = New-Ui $HotkeyCardXaml
+    $keys = Get-ToolHotkey $Tool
+    $info = $card.FindName('Info')
+    if ($script:capturing -eq $Tool.id) {
+        $card.FindName('Keys').Text = 'Pulsa la nueva combinación...'
+        $card.FindName('Keys').Foreground = $app.Resources['AccentBrush']
+        $info.Text = if ($script:captureHint) { $script:captureHint } else { 'Por ejemplo Ctrl + Alt + A. Esc para cancelar.' }
+        $card.FindName('Change').Content = 'Cancelar'
+        $card.FindName('More').Visibility = 'Collapsed'
+    } else {
+        $card.FindName('Keys').Text = if ($keys) { Format-Hotkey $keys } else { 'Sin atajo' }
+        $info.Text = if (-not $keys) { 'Desactivado.' }
+                     elseif ($hotkeyStatus[$Tool.id] -eq 'ok') { 'Funciona mientras PC Toolkit esté en la bandeja.' }
+                     elseif ($hotkeyStatus[$Tool.id] -eq 'ocupado') { 'Otra aplicación ya usa este atajo, así que ahora no funciona.' }
+                     else { 'Funcionará cuando la herramienta esté activada.' }
+        if ($hotkeyStatus[$Tool.id] -eq 'ocupado' -and $keys) { $info.Foreground = $app.Resources['DangerBrush'] }
+        if (-not $keys) { $card.FindName('Disable').Visibility = 'Collapsed' }
+        if ($keys -eq $Tool.hotkey.keys) { $card.FindName('Reset').Visibility = 'Collapsed' }
+    }
+    foreach ($n in 'Change', 'Disable', 'Reset') { $card.FindName($n).Tag = $Tool }
+    $card.FindName('Change').Add_Click({ param($s, $e) if ($script:capturing) { Stop-HotkeyCapture } else { Start-HotkeyCapture $s.Tag } })
+    $card.FindName('Disable').Add_Click({ param($s, $e) Set-ToolHotkey $s.Tag ''; Update-Page })
+    $card.FindName('Reset').Add_Click({ param($s, $e) Set-ToolHotkey $s.Tag $null; Update-Page })
+    [void]$p.Children.Add($card)
+    $p
+}
+
+$HotkeyCardXaml = @"
+<Border Style="{StaticResource Card}">
+  <StackPanel>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+        <TextBlock x:Name="Keys" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+        <TextBlock x:Name="Info" Style="{StaticResource Caption}"/>
+      </StackPanel>
+      <Button x:Name="Change" Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Cambiar"/>
+    </Grid>
+    <StackPanel x:Name="More" Orientation="Horizontal" Margin="-12,6,0,0">
+      <Button x:Name="Disable" Style="{StaticResource SubtleButton}" Content="Desactivar"/>
+      <Button x:Name="Reset" Style="{StaticResource SubtleButton}" Content="Restablecer"/>
+    </StackPanel>
+  </StackPanel>
+</Border>
+"@
 
 $osd = ConvertFrom-Xaml (Get-Content (Join-Path $PSScriptRoot 'osd.xaml') -Raw -Encoding UTF8)
 $osdUi = @{}
@@ -733,7 +873,7 @@ $hotkeys.Add_Pressed({
     $t = $hotkeyTools[$s.LastId - 1]
     try {
         $text = & { param($path) . $path } (Join-Path $t.Dir $t.hotkey.script)
-        Show-Osd (ConvertTo-Glyph $t.icon) ([string]@($text)[-1]) "$($t.hotkey.keys -replace '\+', ' + ')  ·  $($t.name)"
+        Show-Osd (ConvertTo-Glyph $t.icon) ([string]@($text)[-1]) "$(Format-Hotkey (Get-ToolHotkey $t))  ·  $($t.name)"
         if ($win.IsVisible) { Update-Page }
     } catch { Write-ManagerLog "ERROR atajo de $($t.id): $($_.Exception.Message)" }
 })

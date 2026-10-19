@@ -63,9 +63,10 @@ defecto, arranca con Windows.
 ### Audio AutoSwitch
 
 - **Cambio rápido**: en la portada del panel, debajo de Audio AutoSwitch, sale el
-  dispositivo que suena con flechas ‹ › para pasar al anterior o al siguiente.
+  dispositivo que suena; púlsalo y elige cualquiera de la lista desplegable.
 - **Ctrl + Alt + A**: pasa al siguiente dispositivo conectado y muestra un aviso
   abajo en el centro (como el de volumen). Funciona mientras PC Toolkit esté en la bandeja.
+  Se cambia (o se desactiva) en la página de la herramienta → Atajo de teclado.
 
 En su página de ajustes:
 
@@ -121,7 +122,7 @@ Crea `tools/<id>/` con:
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`) |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
 | `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
-| `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa; el script devuelve el texto del aviso |
+| `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa (el usuario puede cambiarlo; se guarda en `data\hotkeys.json`); el script devuelve el texto del aviso |
 | `disable.ps1` | no | Deja el sistema como estaba al desactivarla |
 
 El gestor y el instalador la detectan solos. Sube `VERSION` para que los PCs

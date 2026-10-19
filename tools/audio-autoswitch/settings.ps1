@@ -69,26 +69,7 @@ foreach ($d in $devices) {
     [void]$panel.Children.Add((New-ChoiceRow $d.Name $detail ($cfg.DefaultRenderId -eq $d.Id) $setDefault $d.Id))
 }
 
-# 4. Atajo de teclado (lo registra el gestor; ver "hotkey" en tool.json)
-[void]$panel.Children.Add((New-SectionHeader 'Atajo de teclado'))
-$hk = New-Ui @'
-<Border Style="{StaticResource Card}">
-  <StackPanel>
-    <TextBlock x:Name="Keys" Style="{StaticResource Body}" FontWeight="SemiBold"/>
-    <TextBlock x:Name="Info" Style="{StaticResource Caption}"/>
-  </StackPanel>
-</Border>
-'@
-$hk.FindName('Keys').Text = 'Ctrl + Alt + A'
-$hk.FindName('Info').Text = switch ($hotkeyStatus['audio-autoswitch']) {
-    'ok'      { 'Pasa al siguiente dispositivo conectado y muestra un aviso abajo. Funciona mientras PC Toolkit esté en la bandeja.' }
-    'ocupado' { 'Otra aplicación ya usa este atajo, así que ahora no funciona.' }
-    default   { 'Se activa cuando Audio AutoSwitch está activado.' }
-}
-if ($hotkeyStatus['audio-autoswitch'] -eq 'ocupado') { $hk.FindName('Info').Foreground = $app.Resources['DangerBrush'] }
-[void]$panel.Children.Add($hk)
-
-# 5. Micrófono
+# 4. Micrófono
 [void]$panel.Children.Add((New-SectionHeader 'Micrófono'))
 [void]$panel.Children.Add((New-ToggleRow 'Usar también su micrófono' 'Al cambiar de dispositivo, el micro pasa a ser el del mismo aparato. En Bluetooth el sonido pierde calidad mientras se usa el micro.' $cfg.FollowMic {
     param($a, $isOn)

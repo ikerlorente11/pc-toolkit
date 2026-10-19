@@ -41,7 +41,7 @@
         <TextBlock x:Name="BannerText" Style="{StaticResource Caption}" Foreground="{StaticResource DangerBrush}"/>
       </Border>
 
-      <ScrollViewer x:Name="Scroll" Grid.Row="2" VerticalScrollBarVisibility="Hidden" Focusable="False">
+      <ScrollViewer x:Name="Scroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" Focusable="False">
         <ContentControl x:Name="Page" Margin="12,0,12,14" Focusable="False"/>
       </ScrollViewer>
     </Grid>

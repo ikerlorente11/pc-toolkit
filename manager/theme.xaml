@@ -205,4 +205,30 @@
   <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SubtleButton}">
     <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
   </Style>
+  <!-- Barra de desplazamiento fina (en vez de la de Windows) -->
+  <Style TargetType="ScrollBar">
+    <Setter Property="Width" Value="6"/>
+    <Setter Property="MinWidth" Value="6"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ScrollBar">
+          <Track x:Name="PART_Track" IsDirectionReversed="True">
+            <Track.Thumb>
+              <Thumb>
+                <Thumb.Template>
+                  <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bar" CornerRadius="2" Background="{StaticResource SubBrush}" Opacity="0.45" Margin="1,2"/>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bar" Property="Opacity" Value="0.8"/></Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+            </Track.Thumb>
+          </Track>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 </ResourceDictionary>
