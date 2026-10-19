@@ -4,6 +4,7 @@
 #   tool.json      manifiesto (id, name, description, task, process opcional, log opcional)
 #   install.ps1    registra su tarea programada (obligatorio)
 #   settings.ps1   pagina de ajustes dentro del gestor (opcional; ver manager\PcToolkit.ps1)
+#   home.ps1       bloque dentro de su tarjeta en la portada del gestor (opcional)
 #   disable.ps1    deja el sistema como estaba al desactivarla (opcional)
 # Estado: sin tarea = no instalada; tarea deshabilitada = desactivada; si no, activa.
 
@@ -47,6 +48,7 @@ function Get-Tools {
             $tool | Add-Member -NotePropertyMembers @{
                 Dir          = $_.FullName
                 HasSettings  = Test-Path (Join-Path $_.FullName 'settings.ps1')
+                HasHome      = Test-Path (Join-Path $_.FullName 'home.ps1')
             }
             $tool
         }

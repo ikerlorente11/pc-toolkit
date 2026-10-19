@@ -16,6 +16,7 @@
   <SolidColorBrush x:Key="DangerBrush"    Color="@Danger@"/>
   <SolidColorBrush x:Key="OkBrush"        Color="@Ok@"/>
   <SolidColorBrush x:Key="WarnBrush"      Color="@Warn@"/>
+  <SolidColorBrush x:Key="OsdBrush"       Color="@Osd@"/>
 
   <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
   <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
@@ -146,13 +147,14 @@
     <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
     <Setter Property="FontSize" Value="13"/>
     <Setter Property="Padding" Value="12,6"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="Focusable" Value="False"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
           <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -176,7 +178,7 @@
       <Setter.Value>
         <ControlTemplate TargetType="Button">
           <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">

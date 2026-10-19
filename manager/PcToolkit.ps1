@@ -8,10 +8,17 @@
 #   New-SectionHeader <texto> [<detalle>]  título de sección
 #   New-Hint <texto>                       texto secundario
 #   New-ToggleRow <título> <detalle> <activado> <acción> <arg>   -> & acción arg activado
-#   New-ChoiceRow <título> <detalle> <elegido> <acción> <arg>    -> & acción arg
+#   New-ChoiceRow <título> <detalle> <elegido> <acción> <arg> [-Compact]  -> & acción arg
 #   Update-Page                            vuelve a pintar la página
 # Las funciones que use una acción deben declararse como "function script:Nombre".
 # Si define $script:PageSignature (scriptblock), la página se repinta sola cuando su valor cambia.
+#
+# Otras extensiones de una herramienta:
+#   home.ps1   igual que settings.ps1, pero se muestra dentro de su tarjeta en la portada. Para
+#              repintar sola, $script:HomeSignatures['<id>'] = { ... }
+#   "hotkey" en tool.json: { "keys": "Ctrl+Alt+A", "script": "x.ps1", "description": "..." }
+#              atajo global mientras la herramienta esté activa; el script devuelve el texto
+#              del aviso que aparece abajo en el centro.
 param([switch]$Show)
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +41,40 @@ public static class Native {
     [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hwnd, int index, int value);
     public static void RemoveSystemMenu(IntPtr hwnd) { SetWindowLong(hwnd, -16, GetWindowLong(hwnd, -16) & ~0x80000); }   // sin la X fantasma de Windows
     public static void SetDwm(IntPtr hwnd, int attr, int value) { DwmSetWindowAttribute(hwnd, attr, ref value, 4); }
+    /* Aviso que no se activa ni sale en Alt+Tab */
+    public static void SetNoActivate(IntPtr hwnd) { SetWindowLong(hwnd, -20, GetWindowLong(hwnd, -20) | 0x08000000 | 0x80); }
+}
+"@
+
+# Atajos de teclado globales (RegisterHotKey en una ventana oculta de solo mensajes)
+$wpfRefs = [Windows.Interop.HwndSource].Assembly.Location, [Windows.Threading.Dispatcher].Assembly.Location
+Add-Type -ReferencedAssemblies $wpfRefs -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
+public class GlobalHotkeys {
+    [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hwnd, int id, uint mods, uint vk);
+    [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hwnd, int id);
+    readonly HwndSource source;
+    public int LastId;
+    public event EventHandler Pressed;
+    public GlobalHotkeys() {
+        HwndSourceParameters p = new HwndSourceParameters("PcToolkitHotkeys");
+        p.ParentWindow = new IntPtr(-3);   /* HWND_MESSAGE */
+        p.WindowStyle = 0;
+        source = new HwndSource(p);
+        source.AddHook(Hook);
+    }
+    public bool Register(int id, uint mods, uint vk) { return RegisterHotKey(source.Handle, id, mods | 0x4000 /* MOD_NOREPEAT */, vk); }
+    public void Unregister(int id) { UnregisterHotKey(source.Handle, id); }
+    IntPtr Hook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) {
+        if (msg == 0x0312) {   /* WM_HOTKEY */
+            LastId = wParam.ToInt32();
+            if (Pressed != null) Pressed(this, EventArgs.Empty);
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
 }
 "@
 
@@ -58,10 +99,10 @@ function Get-AccentColor {
 $accent = Get-AccentColor
 $T = if ($dark) {
     @{ Text = '#FFFFFF'; Sub = '#C5FFFFFF'; Card = '#10FFFFFF'; CardHover = '#1AFFFFFF'; Stroke = '#14FFFFFF'; Subtle = '#15FFFFFF'
-       OnAccent = '#000000'; Danger = '#FF99A4'; Ok = '#6CCB5F'; Warn = '#FCE100'; Tint = $(if ($glass) { '#30202020' } else { '#FF202020' }) }
+       OnAccent = '#000000'; Danger = '#FF99A4'; Ok = '#6CCB5F'; Warn = '#FCE100'; Osd = '#FF2C2C2C'; Tint = $(if ($glass) { '#30202020' } else { '#FF202020' }) }
 } else {
     @{ Text = '#1A1A1A'; Sub = '#A0000000'; Card = '#B3FFFFFF'; CardHover = '#80F6F6F6'; Stroke = '#12000000'; Subtle = '#0D000000'
-       OnAccent = '#FFFFFF'; Danger = '#C42B1C'; Ok = '#0F7B0F'; Warn = '#9D5D00'; Tint = $(if ($glass) { '#40F3F3F3' } else { '#FFF3F3F3' }) }
+       OnAccent = '#FFFFFF'; Danger = '#C42B1C'; Ok = '#0F7B0F'; Warn = '#9D5D00'; Osd = '#FFF9F9F9'; Tint = $(if ($glass) { '#40F3F3F3' } else { '#FFF3F3F3' }) }
 }
 $T.Accent      = "#FF$accent"
 $T.AccentHover = "#E0$accent"
@@ -221,8 +262,39 @@ function New-ToggleRow([string]$Title, [string]$Detail, [bool]$Checked, [scriptb
 }
 
 # Fila elegible (tipo radio). Al pulsarla: & $Action $Arg
-function New-ChoiceRow([string]$Title, [string]$Detail, [bool]$Selected, [scriptblock]$Action, $Arg) {
-    $row = New-Ui @'
+function New-ChoiceRow([string]$Title, [string]$Detail, [bool]$Selected, [scriptblock]$Action, $Arg, [switch]$Compact) {
+    $xaml = if ($Compact) { $CompactChoiceXaml } else { $ChoiceXaml }
+    $row = New-Ui $xaml
+    $row.FindName('T').Text = $Title
+    if ($Detail) { $row.FindName('D').Text = $Detail } else { $row.FindName('D').Visibility = 'Collapsed' }
+    if ($Selected) {
+        $row.FindName('Ring').Stroke = $app.Resources['AccentBrush']
+        $row.FindName('Dot').Visibility = 'Visible'
+    }
+    $row.Tag = @{ Action = $Action; Arg = $Arg }
+    [Windows.Automation.AutomationProperties]::SetName($row, $Title)
+    $row.Add_Click({ param($s, $e) Invoke-Safe { & $s.Tag.Action $s.Tag.Arg } })
+    $row
+}
+
+# Versión pequeña (sin tarjeta) para listas dentro de otra tarjeta, como la portada
+$CompactChoiceXaml = @'
+<Button Style="{StaticResource SubtleButton}" Padding="8,5" HorizontalContentAlignment="Stretch" Margin="0,1,0,0">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid Width="14" Height="14" VerticalAlignment="Center">
+      <Ellipse x:Name="Ring" Stroke="{StaticResource SubBrush}" StrokeThickness="1.3"/>
+      <Ellipse x:Name="Dot" Width="6" Height="6" Fill="{StaticResource AccentBrush}" Visibility="Collapsed"/>
+    </Grid>
+    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+      <TextBlock x:Name="T" FontSize="12.5" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+      <TextBlock x:Name="D" Style="{StaticResource Caption}"/>
+    </StackPanel>
+  </Grid>
+</Button>
+'@
+
+$ChoiceXaml = @'
 <Button Style="{StaticResource CardButton}">
   <Grid>
     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -237,17 +309,6 @@ function New-ChoiceRow([string]$Title, [string]$Detail, [bool]$Selected, [script
   </Grid>
 </Button>
 '@
-    $row.FindName('T').Text = $Title
-    if ($Detail) { $row.FindName('D').Text = $Detail } else { $row.FindName('D').Visibility = 'Collapsed' }
-    if ($Selected) {
-        $row.FindName('Ring').Stroke = $app.Resources['AccentBrush']
-        $row.FindName('Dot').Visibility = 'Visible'
-    }
-    $row.Tag = @{ Action = $Action; Arg = $Arg }
-    [Windows.Automation.AutomationProperties]::SetName($row, $Title)
-    $row.Add_Click({ param($s, $e) Invoke-Safe { & $s.Tag.Action $s.Tag.Arg } })
-    $row
-}
 
 function Show-Error([string]$Text) {
     $ui.BannerText.Text = $Text
@@ -289,6 +350,7 @@ function Update-Busy {
             Remove-Item $b.StatusFile -ErrorAction SilentlyContinue
             $busy.Remove($id)
             $changed = $true
+            Update-Hotkeys
         }
     }
     $changed
@@ -297,6 +359,7 @@ function Update-Busy {
 # --- Páginas ---
 
 $script:page = 'home'
+$script:HomeSignatures = @{}
 $script:PageSignature = $null
 $script:settingsSignature = $null
 
@@ -328,7 +391,8 @@ function Get-StatusText($Tool, [string]$State) {
 function Get-HomeSignature {
     ($tools | ForEach-Object {
         $busyText = if ($busy.ContainsKey($_.id)) { Get-BusyText $_.id }
-        "$($_.id)=$(Get-ToolState $_)|$busyText|$($errors[$_.id])|$(if ($_.process) { [bool](Get-ToolProcess $_) })"
+        $own = if ($script:HomeSignatures.ContainsKey($_.id)) { & $script:HomeSignatures[$_.id] }
+        "$($_.id)=$(Get-ToolState $_)|$busyText|$($errors[$_.id])|$(if ($_.process) { [bool](Get-ToolProcess $_) })|$own"
     }) -join ';'
 }
 
@@ -343,7 +407,6 @@ function Get-ToolPageSignature {
 function Show-Home {
     $script:page = 'home'
     $script:PageSignature = { Get-HomeSignature }
-    $script:lastSignature = Get-HomeSignature
     $panel = New-Ui '<StackPanel/>'
     $states = @{}
     foreach ($t in $tools) { $states[$t.id] = Get-ToolState $t }
@@ -387,6 +450,11 @@ function Show-Home {
         if ($busy.ContainsKey($t.id)) {
             $toggle.IsEnabled = $false
             $card.FindName('Extra').Content = New-ProgressBar
+        } elseif ($t.HasHome) {
+            try {
+                $extra = & { param($path) . $path } (Join-Path $t.Dir 'home.ps1')
+                $card.FindName('Extra').Content = @($extra | Where-Object { $_ -is [Windows.UIElement] })[0]
+            } catch { Write-ManagerLog "ERROR home.ps1 de $($t.id): $($_.Exception.Message)" }
         }
         $card.Tag = $t
         [Windows.Automation.AutomationProperties]::SetName($card, $t.name)
@@ -435,6 +503,7 @@ function Show-Home {
         }
     }
     Set-Page $panel 'PC Toolkit' $false
+    $script:lastSignature = Get-HomeSignature
 }
 
 function Show-ToolPage([string]$Id) {
@@ -594,6 +663,82 @@ $tray.Text = 'PC Toolkit'
 $tray.Add_MouseUp({ Switch-Flyout })
 $tray.Visible = $true
 
+# --- Atajos de teclado de las herramientas y aviso flotante ---
+
+$hotkeyStatus = @{}   # id -> 'ok' | 'ocupado' (para mostrarlo en sus ajustes)
+$hotkeys = New-Object GlobalHotkeys
+$hotkeyTools = @($tools | Where-Object { $_.hotkey })
+
+function ConvertFrom-HotkeyText([string]$Text) {
+    $mods = 0; $vk = 0
+    foreach ($part in $Text -split '\+') {
+        $p = $part.Trim().ToUpper()
+        if ($p -in 'CTRL', 'CONTROL') { $mods = $mods -bor 2 }
+        elseif ($p -eq 'ALT')   { $mods = $mods -bor 1 }
+        elseif ($p -eq 'SHIFT') { $mods = $mods -bor 4 }
+        elseif ($p -eq 'WIN')   { $mods = $mods -bor 8 }
+        elseif ($p -match '^F(\d{1,2})$') { $vk = 0x6F + [int]$Matches[1] }
+        elseif ($p -match '^[A-Z0-9]$')   { $vk = [int][char]$p }
+    }
+    @($mods, $vk)
+}
+
+# Registra los atajos de las herramientas activas y quita los de las demás
+function Update-Hotkeys {
+    for ($i = 0; $i -lt $hotkeyTools.Count; $i++) {
+        $t = $hotkeyTools[$i]
+        $want = (Get-ToolState $t) -eq 'Enabled'
+        $has = $hotkeyStatus[$t.id] -eq 'ok'
+        if ($want -and -not $has) {
+            $k = ConvertFrom-HotkeyText $t.hotkey.keys
+            $hotkeyStatus[$t.id] = if ($hotkeys.Register($i + 1, $k[0], $k[1])) { 'ok' } else { 'ocupado' }
+            if ($hotkeyStatus[$t.id] -ne 'ok') { Write-ManagerLog "Atajo $($t.hotkey.keys) de $($t.id) ocupado por otra aplicación" }
+        } elseif (-not $want -and $hotkeyStatus.ContainsKey($t.id)) {
+            if ($has) { $hotkeys.Unregister($i + 1) }
+            $hotkeyStatus.Remove($t.id)
+        }
+    }
+}
+
+$osd = ConvertFrom-Xaml (Get-Content (Join-Path $PSScriptRoot 'osd.xaml') -Raw -Encoding UTF8)
+$osdUi = @{}
+foreach ($n in 'Root', 'Icon', 'Text', 'Detail') { $osdUi[$n] = $osd.FindName($n) }
+$osd.Add_SourceInitialized({
+    $hwnd = (New-Object Windows.Interop.WindowInteropHelper $osd).Handle
+    [Native]::RemoveSystemMenu($hwnd)
+    [Native]::SetNoActivate($hwnd)
+    [Native]::SetDwm($hwnd, 20, [int]$dark)
+    [Native]::SetDwm($hwnd, 33, 2)
+})
+$script:osdUntil = $null
+
+# Aviso abajo en el centro, como el de volumen de Windows
+function Show-Osd([string]$Glyph, [string]$Text, [string]$Detail) {
+    $osdUi.Icon.Text = $Glyph
+    $osdUi.Text.Text = $Text
+    $osdUi.Detail.Text = $Detail
+    $osdUi.Root.Measure([Windows.Size]::new([double]::PositiveInfinity, [double]::PositiveInfinity))
+    $osd.Width  = [Math]::Ceiling($osdUi.Root.DesiredSize.Width)
+    $osd.Height = [Math]::Ceiling($osdUi.Root.DesiredSize.Height)
+    $osd.Show()
+    [void][Native]::ShowWindow((New-Object Windows.Interop.WindowInteropHelper $osd).Handle, 4)   # SW_SHOWNOACTIVATE
+    $wa = [Windows.SystemParameters]::WorkArea
+    $osd.Left = $wa.Left + ($wa.Width - $osd.Width) / 2
+    $osd.Top  = $wa.Bottom - $osd.Height - 56
+    $script:osdUntil = (Get-Date).AddSeconds(2)
+}
+
+$hotkeys.Add_Pressed({
+    param($s, $e)
+    $t = $hotkeyTools[$s.LastId - 1]
+    try {
+        $text = & { param($path) . $path } (Join-Path $t.Dir $t.hotkey.script)
+        Show-Osd (ConvertTo-Glyph $t.icon) ([string]@($text)[-1]) "$($t.hotkey.keys -replace '\+', ' + ')  ·  $($t.name)"
+        if ($win.IsVisible) { Update-Page }
+    } catch { Write-ManagerLog "ERROR atajo de $($t.id): $($_.Exception.Message)" }
+})
+Update-Hotkeys
+
 # --- Reloj: otra instancia pide mostrar, progreso de acciones, refresco del estado ---
 
 $script:ticks = 0
@@ -608,6 +753,7 @@ $timer.Add_Tick({
         if ($script:exitAt -and (Get-Date) -ge $script:exitAt) { Exit-Manager; return }
         if ($script:checkUpdateAt -and (Get-Date) -ge $script:checkUpdateAt) { $script:checkUpdateAt = $null; Invoke-UpdateCheck }
         if ($script:bannerUntil -and (Get-Date) -ge $script:bannerUntil) { $script:bannerUntil = $null; $ui.Banner.Visibility = 'Collapsed' }
+        if ($script:osdUntil -and (Get-Date) -ge $script:osdUntil) { $script:osdUntil = $null; $osd.Hide() }
 
         $finished = Update-Busy
         if (-not $win.IsVisible) { return }

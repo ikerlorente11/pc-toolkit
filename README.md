@@ -13,7 +13,7 @@ aparte de PowerShell, que ya viene con Windows.
 
 | Herramienta | Qué hace |
 |---|---|
-| **Audio AutoSwitch** | Lo último que enciendes (cascos Bluetooth o USB) pasa a sonar; al apagarlo vuelve al anterior que siga encendido y, al final, a tu dispositivo por defecto. Cambio manual entre los conectados desde el gestor. |
+| **Audio AutoSwitch** | Lo último que enciendes (cascos Bluetooth o USB) pasa a sonar; al apagarlo vuelve al anterior que siga encendido y, al final, a tu dispositivo por defecto. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
 | **Taskbar RDP** | Barra de tareas siempre visible cuando te conectas por Escritorio Remoto y autoocultable cuando estás delante del PC. |
 
 ## Instalar en un PC nuevo
@@ -60,7 +60,14 @@ defecto, arranca con Windows.
 - **Ajustes** (rueda dentada): iniciar con Windows, buscar actualizaciones (se
   instalan solas respetando lo que tengas activado), abrir la carpeta y salir.
 
-### Ajustes de Audio AutoSwitch
+### Audio AutoSwitch
+
+- **Cambio rápido**: en la portada del panel, debajo de Audio AutoSwitch, salen los
+  dispositivos conectados; pulsa uno para que suene.
+- **Ctrl + Alt + A**: pasa al siguiente dispositivo conectado y muestra un aviso
+  abajo en el centro (como el de volumen). Funciona mientras PC Toolkit esté en la bandeja.
+
+En su página de ajustes:
 
 - **Sonando ahora**: cambia a mano entre los dispositivos conectados sin apagar nada.
 - **Cambiar solo al encender**: qué dispositivos se ponen solos al encenderse. Por
@@ -72,7 +79,9 @@ defecto, arranca con Windows.
 - **Usar también su micrófono**: el micro sigue al dispositivo de salida.
 
 > Los cascos con receptor USB (p. ej. Razer Barracuda X) solo "se encienden" para
-> Windows al enchufar el receptor, no al encender los cascos.
+> Windows al enchufar el receptor: con los cascos apagados el receptor sigue
+> apareciendo como un dispositivo activo y no avisa de nada (comprobado también por
+> su canal HID). Para esos, usa el cambio rápido o Ctrl + Alt + A.
 
 ## Actualizar y desinstalar
 
@@ -111,6 +120,8 @@ Crea `tools/<id>/` con:
 | `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos) |
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`) |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
+| `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
+| `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa; el script devuelve el texto del aviso |
 | `disable.ps1` | no | Deja el sistema como estaba al desactivarla |
 
 El gestor y el instalador la detectan solos. Sube `VERSION` para que los PCs

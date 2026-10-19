@@ -5,5 +5,6 @@
   "description": "Al encender unos auriculares el sonido pasa a ellos; al apagarlos vuelve a lo anterior que siga encendido.",
   "task": "AudioAutoSwitch",
   "process": "AudioAutoSwitch\\.ps1",
-  "log": "AudioAutoSwitch.log"
+  "log": "AudioAutoSwitch.log",
+  "hotkey": { "keys": "Ctrl+Alt+A", "script": "hotkey.ps1", "description": "Pasa al siguiente dispositivo conectado" }
 }
