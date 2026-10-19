@@ -11,6 +11,7 @@ $script:KeyboardSounds = [ordered]@{
     frog  = 'Rana'
     miau1 = 'Maullido'
     ahh   = 'Ahh'
+    yiahhh = 'Yiahhh'
 }
 
 function script:Get-KeyboardSoundConfig {
