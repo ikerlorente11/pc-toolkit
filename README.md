@@ -18,15 +18,21 @@ aparte de PowerShell, que ya viene con Windows.
 
 ## Instalar en un PC nuevo
 
-Abre **PowerShell** (normal, sin admin) y pega:
+**[⬇ Descargar PCToolkit-Setup.exe](https://github.com/ikerlorente11/pc-toolkit/releases/latest/download/PCToolkit-Setup.exe)**,
+ábrelo, marca las herramientas que quieras y pulsa **Instalar**. El instalador
+descarga siempre la última versión, así que el `.exe` sirve aunque sea antiguo.
+
+> Como el `.exe` no está firmado, Windows puede mostrar *"Windows protegió su PC"*:
+> pulsa **Más información → Ejecutar de todas formas**.
+
+Si eliges Audio AutoSwitch, **ten los auriculares encendidos**: se abrirá una
+ventana para elegirlos (y los altavoces y micros de respaldo).
+
+Sin descargar nada, desde **PowerShell** (normal, sin admin):
 
 ```powershell
 irm https://raw.githubusercontent.com/ikerlorente11/pc-toolkit/main/install.ps1 | iex
 ```
-
-El instalador descarga el toolkit, te pregunta qué herramientas quieres y abre el
-gestor. Si eliges Audio AutoSwitch, **ten los auriculares encendidos**: se abrirá
-una ventana para elegirlos (y los altavoces y micros de respaldo).
 
 Desde el repo clonado también puedes hacerlo sin preguntas:
 
@@ -62,7 +68,7 @@ rápidamente.
 # Actualizar (o el botón del gestor)
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/ikerlorente11/pc-toolkit/main/install.ps1))) -Update
 
-# Desinstalar todo
+# Desinstalar todo (o desde Configuración > Aplicaciones > PC Toolkit)
 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\PcToolkit\app\uninstall.ps1"
 ```
 
@@ -73,6 +79,7 @@ install.ps1 / uninstall.ps1   instalador global
 core/Toolkit.psm1             funciones comunes (estado, activar, instalar...)
 core/run-hidden.vbs           lanza scripts de PowerShell sin ventana
 manager/PcToolkit.ps1         gestor (WinForms + icono de bandeja)
+setup/                        PCToolkit-Setup.exe (C#; se compila con setup/build.ps1)
 tools/<id>/                   una carpeta por herramienta
 ```
 
