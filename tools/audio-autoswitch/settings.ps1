@@ -2,21 +2,7 @@
 # La carga el gestor con "." y muestra lo que devuelve (ver los helpers en manager\PcToolkit.ps1).
 # Los cambios se guardan en config.json y el vigilante los aplica solo, sin reiniciarlo.
 
-if (-not ('PcToolkit.Audio.Endpoints' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'AudioEndpoints.cs') }
-$script:AudioDataDir = Get-ToolDataDir 'audio-autoswitch'
-
-function script:Get-AudioConfig {
-    $path = Join-Path $script:AudioDataDir 'config.json'
-    $c = if (Test-Path $path) { try { Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json } catch {} }
-    $cfg = @{ DefaultRenderId = $c.DefaultRenderId; FollowMic = [bool]$c.FollowMic; Auto = @{} }
-    if ($c.Auto) { foreach ($p in $c.Auto.PSObject.Properties) { $cfg.Auto[$p.Name] = [bool]$p.Value } }
-    $cfg
-}
-
-function script:Save-AudioConfig($cfg) {
-    [ordered]@{ DefaultRenderId = $cfg.DefaultRenderId; FollowMic = $cfg.FollowMic; Auto = $cfg.Auto } |
-        ConvertTo-Json | Set-Content (Join-Path $script:AudioDataDir 'config.json') -Encoding UTF8
-}
+. (Join-Path $PSScriptRoot 'common.ps1')
 
 # Dispositivos de salida: los conectados y los emparejados pero apagados (sin los perfiles "manos libres")
 function script:Get-AudioDevices {
@@ -41,10 +27,10 @@ foreach ($d in $active) {
     } $d.Id))
 }
 
-# 2. Cuáles cambian solos al encenderse
-[void]$panel.Children.Add((New-SectionHeader 'Cambiar solo al encender' 'El sonido pasa a estos en cuanto se encienden. Al apagarlos vuelve al anterior que siga encendido.'))
+# 2. Habilitados: cambian solos al encenderse y son los del cambio rápido y el atajo
+[void]$panel.Children.Add((New-SectionHeader 'Dispositivos habilitados' 'El sonido pasa a estos en cuanto se encienden (y vuelve al anterior al apagarlos). Son también los que salen en el cambio rápido de la portada y entre los que salta el atajo.'))
 foreach ($d in $devices) {
-    $on = if ($cfg.Auto.ContainsKey($d.Id)) { $cfg.Auto[$d.Id] } else { $d.AutoByDefault }
+    $on = Test-AudioEnabled $d $cfg
     $detail = if ($d.IsActive) { 'Conectado' } else { 'Apagado o desconectado' }
     [void]$panel.Children.Add((New-ToggleRow $d.Name $detail $on {
         param($id, $isOn)

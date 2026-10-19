@@ -63,15 +63,17 @@ defecto, arranca con Windows.
 ### Audio AutoSwitch
 
 - **Cambio rápido**: en la portada del panel, debajo de Audio AutoSwitch, sale el
-  dispositivo que suena; púlsalo y elige cualquiera de la lista desplegable.
-- **Ctrl + Alt + A**: pasa al siguiente dispositivo conectado y muestra un aviso
+  dispositivo que suena; púlsalo y elige en la lista desplegable entre tus dispositivos
+  habilitados que estén conectados.
+- **Ctrl + Alt + A**: pasa al siguiente dispositivo habilitado conectado y muestra un aviso
   abajo en el centro (como el de volumen). Funciona mientras PC Toolkit esté en la bandeja.
   Se cambia (o se desactiva) en la página de la herramienta → Atajo de teclado.
 
 En su página de ajustes:
 
 - **Sonando ahora**: cambia a mano entre los dispositivos conectados sin apagar nada.
-- **Cambiar solo al encender**: qué dispositivos se ponen solos al encenderse. Por
+- **Dispositivos habilitados**: los que se ponen solos al encenderse y los únicos que
+  salen en el cambio rápido y en el atajo. Por
   defecto, los Bluetooth, los USB y los auriculares; no los monitores HDMI ni los
   altavoces internos (si Windows cambia solo a un monitor que despierta, se vuelve
   a lo que sonaba).
