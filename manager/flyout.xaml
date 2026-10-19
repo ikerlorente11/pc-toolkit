@@ -32,7 +32,10 @@
           <Image x:Name="Logo" Width="20" Height="20" Margin="8,0,2,0" VerticalAlignment="Center"/>
           <TextBlock x:Name="HeaderTitle" Text="PC Toolkit" FontSize="14" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
-        <Button x:Name="SettingsButton" Grid.Column="1" Style="{StaticResource IconButton}" Content="&#xE713;" AutomationProperties.Name="Ajustes"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button x:Name="ViewButton" Style="{StaticResource IconButton}" FontSize="13"/>
+          <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Content="&#xE713;" AutomationProperties.Name="Ajustes"/>
+        </StackPanel>
       </Grid>
 
       <!-- Aviso de error (se oculta solo) -->

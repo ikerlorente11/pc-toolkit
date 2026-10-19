@@ -57,6 +57,10 @@ defecto, arranca con Windows.
   pulsa una para entrar en sus ajustes, ver su registro o desinstalarla.
 - **Disponibles**: botón **Instalar**. Todo se hace en segundo plano con una barra
   de progreso, sin congelar el panel.
+- **Vista** (botón junto a la rueda dentada): alterna entre lista (con descripción y el
+  cambio rápido de audio) y cuadrícula (mosaicos compactos de 2 en 2).
+- **Grupos plegables**: pulsa "Instaladas" o "Disponibles" para plegarlos o desplegarlos.
+  La vista y los grupos plegados se recuerdan.
 - **Ajustes** (rueda dentada): iniciar con Windows, buscar actualizaciones (se
   instalan solas respetando lo que tengas activado), abrir la carpeta y salir.
 

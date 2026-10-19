@@ -125,7 +125,7 @@ $app.Add_DispatcherUnhandledException({
 
 $win = ConvertFrom-Xaml (Get-Content (Join-Path $PSScriptRoot 'flyout.xaml') -Raw -Encoding UTF8)
 $ui = @{}
-foreach ($n in 'Root', 'Anim', 'Slide', 'BackButton', 'Logo', 'HeaderTitle', 'SettingsButton', 'Banner', 'BannerText', 'Scroll', 'Page') { $ui[$n] = $win.FindName($n) }
+foreach ($n in 'Root', 'Anim', 'Slide', 'BackButton', 'Logo', 'HeaderTitle', 'ViewButton', 'SettingsButton', 'Banner', 'BannerText', 'Scroll', 'Page') { $ui[$n] = $win.FindName($n) }
 # Imagen cargada en memoria (OnLoad) para no dejar el archivo bloqueado durante las actualizaciones
 $logo = New-Object Windows.Media.Imaging.BitmapImage
 $logo.BeginInit()
@@ -369,6 +369,7 @@ function Set-Page($Element, [string]$Title, [bool]$Back) {
     $ui.HeaderTitle.Text = $Title
     $ui.BackButton.Visibility = if ($Back) { 'Visible' } else { 'Collapsed' }
     $ui.Logo.Visibility = if ($Back) { 'Collapsed' } else { 'Visible' }
+    $ui.ViewButton.Visibility = if ($Back) { 'Collapsed' } else { 'Visible' }
 }
 
 function Update-Page {
@@ -405,19 +406,105 @@ function Get-ToolPageSignature {
     "$(Get-ToolState $t)|$busyText|$($errors[$t.id])|$(if ($t.process) { [bool](Get-ToolProcess $t) })|$own"
 }
 
-function Show-Home {
-    $script:page = 'home'
-    $script:PageSignature = { Get-HomeSignature }
-    $panel = New-Ui '<StackPanel/>'
-    $states = @{}
-    foreach ($t in $tools) { $states[$t.id] = Get-ToolState $t }
-    $installed = @($tools | Where-Object { $states[$_.id] -ne 'NotInstalled' })
-    $available = @($tools | Where-Object { $states[$_.id] -eq 'NotInstalled' })
+# Preferencias de la portada (vista lista/cuadrícula y grupos plegados), en data\manager.json
+$PrefsFile = Join-Path (Get-ToolkitRoot) 'data\manager.json'
 
-    [void]$panel.Children.Add((New-SectionHeader 'Instaladas'))
-    if (-not $installed) { [void]$panel.Children.Add((New-Hint 'Todavía no hay ninguna. Instálalas desde la lista de abajo.')) }
-    foreach ($t in $installed) {
-        $card = New-Ui @'
+function Get-HomePrefs {
+    $p = @{ View = 'list'; Collapsed = @{} }
+    if (Test-Path $PrefsFile) {
+        try {
+            $j = Get-Content $PrefsFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($j.View -in 'list', 'grid') { $p.View = $j.View }
+            if ($j.Collapsed) { foreach ($c in $j.Collapsed.PSObject.Properties) { $p.Collapsed[$c.Name] = [bool]$c.Value } }
+        } catch {}
+    }
+    $p
+}
+
+function Save-HomePrefs {
+    New-Item -ItemType Directory -Force -Path (Split-Path $PrefsFile) | Out-Null
+    $script:prefs | ConvertTo-Json | Set-Content $PrefsFile -Encoding UTF8
+}
+
+$script:prefs = Get-HomePrefs
+
+function Switch-HomeView {
+    $script:prefs.View = if ($script:prefs.View -eq 'grid') { 'list' } else { 'grid' }
+    Save-HomePrefs
+    Show-Home
+}
+
+# Título de grupo plegable: flecha + nombre + número de herramientas
+function New-GroupHeader([string]$Key, [string]$Title, [int]$Count) {
+    $collapsed = [bool]$script:prefs.Collapsed[$Key]
+    $h = New-Ui $GroupHeaderXaml
+    $h.FindName('Chevron').Text = if ($collapsed) { [string][char]0xE76C } else { [string][char]0xE70D }
+    $h.FindName('Title').Text = $Title
+    $h.FindName('Count').Text = "$Count"
+    $h.Tag = $Key
+    [Windows.Automation.AutomationProperties]::SetName($h, "$Title ($Count), $(if ($collapsed) { 'plegado' } else { 'desplegado' })")
+    $h.Add_Click({
+        param($s, $e)
+        $script:prefs.Collapsed[$s.Tag] = -not [bool]$script:prefs.Collapsed[$s.Tag]
+        Save-HomePrefs
+        Show-Home
+    })
+    $h
+}
+
+$GroupHeaderXaml = @'
+<Button Style="{StaticResource SubtleButton}" HorizontalContentAlignment="Stretch" Padding="6,5" Margin="-2,10,0,4">
+  <StackPanel Orientation="Horizontal">
+    <TextBlock x:Name="Chevron" Style="{StaticResource Icon}" FontSize="10" Width="14" Foreground="{StaticResource SubBrush}"/>
+    <TextBlock x:Name="Title" FontSize="13" FontWeight="SemiBold" Margin="6,0,0,0" VerticalAlignment="Center"/>
+    <Border Background="{StaticResource CardBrush}" CornerRadius="8" Padding="7,0" Margin="8,0,0,0" VerticalAlignment="Center">
+      <TextBlock x:Name="Count" Style="{StaticResource Caption}"/>
+    </Border>
+  </StackPanel>
+</Button>
+'@
+
+# Interruptor de activar/desactivar común a la tarjeta y al mosaico
+function Connect-ToolToggle($Toggle, $Tool, [string]$State) {
+    $Toggle.IsChecked = $State -eq 'Enabled'
+    [Windows.Automation.AutomationProperties]::SetName($Toggle, "Activar $($Tool.name)")
+    $Toggle.Tag = $Tool
+    $onToggle = { param($s, $e) Start-Action $s.Tag $(if ($s.IsChecked) { 'enable' } else { 'disable' }) }
+    $Toggle.Add_Checked($onToggle)
+    $Toggle.Add_Unchecked($onToggle)
+    if ($busy.ContainsKey($Tool.id)) { $Toggle.IsEnabled = $false }
+}
+
+# Al pulsar la tarjeta/mosaico se abre su página (solo clics en ella misma: los de dentro burbujean)
+function Connect-ToolOpen($Card, $Tool) {
+    $Card.Tag = $Tool
+    [Windows.Automation.AutomationProperties]::SetName($Card, $Tool.name)
+    $Card.Add_Click({ param($s, $e) if ($e.OriginalSource -eq $s) { Show-ToolPage $s.Tag.id } })
+}
+
+# Botón Instalar común; mientras instala se cambia por barra de progreso + texto, y si falla, el error
+function Connect-ToolInstall($Card, $Tool) {
+    $btn = $Card.FindName('Install')
+    $btn.Tag = $Tool
+    [Windows.Automation.AutomationProperties]::SetName($btn, "Instalar $($Tool.name)")
+    $btn.Add_Click({ param($s, $e) Start-Action $s.Tag 'install' })
+    if ($busy.ContainsKey($Tool.id)) {
+        $btn.Visibility = 'Collapsed'
+        $p = New-Ui '<StackPanel/>'
+        [void]$p.Children.Add((New-ProgressBar))
+        $h = New-Hint (Get-BusyText $Tool.id); $h.Margin = '0,6,0,0'
+        [void]$p.Children.Add($h)
+        $Card.FindName('Extra').Content = $p
+    } elseif ($errors.ContainsKey($Tool.id)) {
+        $h = New-Hint $errors[$Tool.id]; $h.Margin = '0,8,0,0'; $h.Foreground = $app.Resources['DangerBrush']
+        $Card.FindName('Extra').Content = $h
+    }
+}
+
+# --- Vista de lista: tarjetas anchas con descripción y el bloque home.ps1 de la herramienta ---
+
+function New-InstalledCard($Tool, [string]$State) {
+    $card = New-Ui @'
 <Button Style="{StaticResource CardButton}">
   <StackPanel>
     <Grid>
@@ -436,38 +523,26 @@ function Show-Home {
   </StackPanel>
 </Button>
 '@
-        $card.FindName('Icon').Text = ConvertTo-Glyph $t.icon
-        $card.FindName('Name').Text = $t.name
-        $status = Get-StatusText $t $states[$t.id]
-        $card.FindName('Status').Text = $status[0]
-        $card.FindName('Status').Foreground = $app.Resources[$status[1]]
-        $toggle = $card.FindName('Toggle')
-        $toggle.IsChecked = $states[$t.id] -eq 'Enabled'
-        [Windows.Automation.AutomationProperties]::SetName($toggle, "Activar $($t.name)")
-        $toggle.Tag = $t
-        $onToggle = { param($s, $e) Start-Action $s.Tag $(if ($s.IsChecked) { 'enable' } else { 'disable' }) }
-        $toggle.Add_Checked($onToggle)
-        $toggle.Add_Unchecked($onToggle)
-        if ($busy.ContainsKey($t.id)) {
-            $toggle.IsEnabled = $false
-            $card.FindName('Extra').Content = New-ProgressBar
-        } elseif ($t.HasHome) {
-            try {
-                $extra = & { param($path) . $path } (Join-Path $t.Dir 'home.ps1')
-                $card.FindName('Extra').Content = @($extra | Where-Object { $_ -is [Windows.UIElement] })[0]
-            } catch { Write-ManagerLog "ERROR home.ps1 de $($t.id): $($_.Exception.Message)" }
-        }
-        $card.Tag = $t
-        [Windows.Automation.AutomationProperties]::SetName($card, $t.name)
-        # Solo clics en la propia tarjeta: los de su interruptor o su bloque de portada también llegan aquí (burbujean)
-        $card.Add_Click({ param($s, $e) if ($e.OriginalSource -eq $s) { Show-ToolPage $s.Tag.id } })
-        [void]$panel.Children.Add($card)
+    $card.FindName('Icon').Text = ConvertTo-Glyph $Tool.icon
+    $card.FindName('Name').Text = $Tool.name
+    $status = Get-StatusText $Tool $State
+    $card.FindName('Status').Text = $status[0]
+    $card.FindName('Status').Foreground = $app.Resources[$status[1]]
+    Connect-ToolToggle $card.FindName('Toggle') $Tool $State
+    if ($busy.ContainsKey($Tool.id)) {
+        $card.FindName('Extra').Content = New-ProgressBar
+    } elseif ($Tool.HasHome) {
+        try {
+            $extra = & { param($path) . $path } (Join-Path $Tool.Dir 'home.ps1')
+            $card.FindName('Extra').Content = @($extra | Where-Object { $_ -is [Windows.UIElement] })[0]
+        } catch { Write-ManagerLog "ERROR home.ps1 de $($Tool.id): $($_.Exception.Message)" }
     }
+    Connect-ToolOpen $card $Tool
+    $card
+}
 
-    if ($available) {
-        [void]$panel.Children.Add((New-SectionHeader 'Disponibles'))
-        foreach ($t in $available) {
-            $card = New-Ui @'
+function New-AvailableCard($Tool) {
+    $card = New-Ui @'
 <Border Style="{StaticResource Card}">
   <StackPanel>
     <Grid>
@@ -483,28 +558,89 @@ function Show-Home {
   </StackPanel>
 </Border>
 '@
-            $card.FindName('Icon').Text = ConvertTo-Glyph $t.icon
-            $card.FindName('Name').Text = $t.name
-            $card.FindName('Desc').Text = $t.description
-            $btn = $card.FindName('Install')
-            $btn.Tag = $t
-            [Windows.Automation.AutomationProperties]::SetName($btn, "Instalar $($t.name)")
-            $btn.Add_Click({ param($s, $e) Start-Action $s.Tag 'install' })
-            if ($busy.ContainsKey($t.id)) {
-                $btn.Visibility = 'Collapsed'
-                $p = New-Ui '<StackPanel/>'
-                [void]$p.Children.Add((New-ProgressBar))
-                $h = New-Hint (Get-BusyText $t.id); $h.Margin = '0,6,0,0'
-                [void]$p.Children.Add($h)
-                $card.FindName('Extra').Content = $p
-            } elseif ($errors.ContainsKey($t.id)) {
-                $h = New-Hint $errors[$t.id]; $h.Margin = '0,8,0,0'; $h.Foreground = $app.Resources['DangerBrush']
-                $card.FindName('Extra').Content = $h
+    $card.FindName('Icon').Text = ConvertTo-Glyph $Tool.icon
+    $card.FindName('Name').Text = $Tool.name
+    $card.FindName('Desc').Text = $Tool.description
+    Connect-ToolInstall $card $Tool
+    $card
+}
+
+# --- Vista de cuadrícula: mosaicos compactos de 2 en 2 ---
+
+function New-InstalledTile($Tool, [string]$State) {
+    $tile = New-Ui @'
+<Button Style="{StaticResource CardButton}" Margin="0,0,4,4" Padding="12,10" VerticalContentAlignment="Stretch">
+  <StackPanel>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock x:Name="Icon" Style="{StaticResource ToolIcon}" HorizontalAlignment="Left" TextAlignment="Left"/>
+      <CheckBox x:Name="Toggle" Grid.Column="1" Style="{StaticResource Toggle}"/>
+    </Grid>
+    <TextBlock x:Name="Name" Style="{StaticResource Title}" Margin="0,12,0,0"/>
+    <TextBlock x:Name="Status" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+    <ContentControl x:Name="Extra" Focusable="False"/>
+  </StackPanel>
+</Button>
+'@
+    $tile.FindName('Icon').Text = ConvertTo-Glyph $Tool.icon
+    $tile.FindName('Name').Text = $Tool.name
+    $status = Get-StatusText $Tool $State
+    $tile.FindName('Status').Text = $status[0] -replace ' · en marcha$', ''   # en el mosaico, corto
+    $tile.FindName('Status').Foreground = $app.Resources[$status[1]]
+    Connect-ToolToggle $tile.FindName('Toggle') $Tool $State
+    if ($busy.ContainsKey($Tool.id)) { $tile.FindName('Extra').Content = New-ProgressBar }
+    Connect-ToolOpen $tile $Tool
+    $tile
+}
+
+function New-AvailableTile($Tool) {
+    $tile = New-Ui @'
+<Border Style="{StaticResource Card}" Margin="0,0,4,4" Padding="12,10">
+  <StackPanel>
+    <TextBlock x:Name="Icon" Style="{StaticResource ToolIcon}" HorizontalAlignment="Left" TextAlignment="Left"/>
+    <TextBlock x:Name="Name" Style="{StaticResource Title}" Margin="0,12,0,8"/>
+    <Button x:Name="Install" Style="{StaticResource AccentButton}" Content="Instalar" HorizontalAlignment="Left" Padding="12,4"/>
+    <ContentControl x:Name="Extra" Focusable="False"/>
+  </StackPanel>
+</Border>
+'@
+    $tile.FindName('Icon').Text = ConvertTo-Glyph $Tool.icon
+    $tile.FindName('Name').Text = $Tool.name
+    Connect-ToolInstall $tile $Tool
+    $tile
+}
+
+function Show-Home {
+    $script:page = 'home'
+    $script:PageSignature = { Get-HomeSignature }
+    $grid = $script:prefs.View -eq 'grid'
+    $panel = New-Ui '<StackPanel/>'
+    $states = @{}
+    foreach ($t in $tools) { $states[$t.id] = Get-ToolState $t }
+    $groups = @(
+        @{ Key = 'installed'; Title = 'Instaladas';  Items = @($tools | Where-Object { $states[$_.id] -ne 'NotInstalled' }) }
+        @{ Key = 'available'; Title = 'Disponibles'; Items = @($tools | Where-Object { $states[$_.id] -eq 'NotInstalled' }) }
+    )
+    foreach ($g in $groups) {
+        if ($g.Key -eq 'available' -and -not $g.Items) { continue }
+        [void]$panel.Children.Add((New-GroupHeader $g.Key $g.Title $g.Items.Count))
+        if ($script:prefs.Collapsed[$g.Key]) { continue }
+        if (-not $g.Items) { [void]$panel.Children.Add((New-Hint 'Todavía no hay ninguna. Instálalas desde la lista de abajo.')); continue }
+        $container = if ($grid) { New-Ui '<UniformGrid Columns="2" Margin="0,0,-4,0"/>' } else { $panel }
+        foreach ($t in $g.Items) {
+            $item = if ($g.Key -eq 'installed') {
+                if ($grid) { New-InstalledTile $t $states[$t.id] } else { New-InstalledCard $t $states[$t.id] }
+            } else {
+                if ($grid) { New-AvailableTile $t } else { New-AvailableCard $t }
             }
-            [void]$panel.Children.Add($card)
+            [void]$container.Children.Add($item)
         }
+        if ($grid) { [void]$panel.Children.Add($container) }
     }
     Set-Page $panel 'PC Toolkit' $false
+    # El botón de vista muestra la vista a la que se cambia
+    $ui.ViewButton.Content = if ($grid) { [string][char]0xE8FD } else { [string][char]0xF0E2 }
+    [Windows.Automation.AutomationProperties]::SetName($ui.ViewButton, $(if ($grid) { 'Ver como lista' } else { 'Ver como cuadrícula' }))
     $script:lastSignature = Get-HomeSignature
 }
 
@@ -655,6 +791,7 @@ function Invoke-UpdateCheck {
 }
 
 $ui.BackButton.Add_Click({ if ($script:page -like 'log:*') { Show-ToolPage ($script:page.Substring(4)) } else { Show-Home } })
+$ui.ViewButton.Add_Click({ Switch-HomeView })
 $ui.SettingsButton.Add_Click({ if ($script:page -eq 'settings') { Show-Home } else { Show-SettingsPage } })
 
 # --- Icono de la bandeja ---
