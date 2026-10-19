@@ -31,6 +31,14 @@ namespace PcToolkit.Taskbar {
             return ((uint)SHAppBarMessage(0x4, ref d) & 0x1) != 0;   // ABM_GETSTATE & ABS_AUTOHIDE
         }
 
+        // Borde en el que está la barra: 0 izquierda, 1 arriba, 2 derecha, 3 abajo
+        public static int GetEdge() {
+            APPBARDATA d = new APPBARDATA();
+            d.cbSize = Marshal.SizeOf(d);
+            SHAppBarMessage(0x5, ref d);   // ABM_GETTASKBARPOS
+            return (int)d.uEdge;
+        }
+
         public static void SetAutoHide(bool autoHide) {
             APPBARDATA d = new APPBARDATA();
             d.cbSize = Marshal.SizeOf(d);

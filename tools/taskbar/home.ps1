@@ -1,11 +1,11 @@
-﻿# home.ps1 - Bloque de la Barra de tareas en la portada del gestor: perfil en uso + botón Refrescar.
+﻿# home.ps1 - Bloque de la Barra de tareas en la portada del gestor: perfil en uso y botón Refrescar.
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 # Repintar al conectar/desconectar por Escritorio Remoto o al cambiar la configuración
 $script:HomeSignatures['taskbar'] = {
     $path = Join-Path $script:TaskbarDataDir 'config.json'
-    "$([PcToolkit.Taskbar.Native]::IsRemote)|$(if (Test-Path $path) { (Get-Item $path).LastWriteTimeUtc.Ticks })"
+    "$([PcToolkit.Taskbar.Native]::IsRemote)|$([PcToolkit.Taskbar.Native]::GetEdge())|$(if (Test-Path $path) { (Get-Item $path).LastWriteTimeUtc.Ticks })"
 }
 
 $cfg  = Get-TaskbarConfig
@@ -26,7 +26,7 @@ $row = New-Ui @'
   </Button>
 </Grid>
 '@
-$row.FindName('Name').Text = "Perfil $(Get-TaskbarProfileLabel $name)"
+$row.FindName('Name').Text = Get-TaskbarProfileLabel $name
 $row.FindName('Info').Text = Get-TaskbarProfileSummary $cfg[$name]
 $row.FindName('Refresh').Add_Click({
     param($s, $e)

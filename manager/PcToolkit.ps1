@@ -464,6 +464,11 @@ $GroupHeaderXaml = @'
 </Button>
 '@
 
+# Descripción corta para la portada ("summary" de tool.json; si falta, el principio de la larga)
+function Get-ToolSummary($Tool) {
+    if ($Tool.summary) { $Tool.summary } else { ($Tool.description -split '[.;,(]')[0] }
+}
+
 # Interruptor de activar/desactivar común a la tarjeta y al mosaico
 function Connect-ToolToggle($Toggle, $Tool, [string]$State) {
     $Toggle.IsChecked = $State -eq 'Enabled'
@@ -546,25 +551,26 @@ function New-InstalledCard($Tool, [string]$State) {
 
 function New-AvailableCard($Tool) {
     $card = New-Ui @'
-<Border Style="{StaticResource Card}">
+<Button Style="{StaticResource CardButton}">
   <StackPanel>
     <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock x:Name="Icon" Style="{StaticResource ToolIcon}" VerticalAlignment="Top" Margin="0,2,0,0"/>
-      <StackPanel Grid.Column="1" Margin="12,0">
+      <TextBlock x:Name="Icon" Style="{StaticResource ToolIcon}"/>
+      <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
         <TextBlock x:Name="Name" Style="{StaticResource Title}"/>
-        <TextBlock x:Name="Desc" Style="{StaticResource Caption}" Margin="0,2,0,0"/>
+        <TextBlock x:Name="Desc" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
       </StackPanel>
-      <Button x:Name="Install" Grid.Column="2" Style="{StaticResource AccentButton}" Content="Instalar" VerticalAlignment="Top"/>
+      <Button x:Name="Install" Grid.Column="2" Style="{StaticResource AccentButton}" Content="Instalar" VerticalAlignment="Center"/>
     </Grid>
     <ContentControl x:Name="Extra" Focusable="False"/>
   </StackPanel>
-</Border>
+</Button>
 '@
     $card.FindName('Icon').Text = ConvertTo-Glyph $Tool.icon
     $card.FindName('Name').Text = $Tool.name
-    $card.FindName('Desc').Text = $Tool.description
+    $card.FindName('Desc').Text = Get-ToolSummary $Tool
     Connect-ToolInstall $card $Tool
+    Connect-ToolOpen $card $Tool
     $card
 }
 
@@ -603,18 +609,21 @@ function New-InstalledTile($Tool, [string]$State) {
 
 function New-AvailableTile($Tool) {
     $tile = New-Ui @'
-<Border Style="{StaticResource Card}" Margin="0,0,4,4" Padding="12,10">
+<Button Style="{StaticResource CardButton}" Margin="0,0,4,4" Padding="12,10" VerticalContentAlignment="Stretch">
   <StackPanel>
     <TextBlock x:Name="Icon" Style="{StaticResource ToolIcon}" HorizontalAlignment="Left" TextAlignment="Left"/>
-    <TextBlock x:Name="Name" Style="{StaticResource Title}" Margin="0,12,0,8"/>
+    <TextBlock x:Name="Name" Style="{StaticResource Title}" Margin="0,12,0,0"/>
+    <TextBlock x:Name="Desc" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
     <Button x:Name="Install" Style="{StaticResource AccentButton}" Content="Instalar" HorizontalAlignment="Left" Padding="12,4"/>
     <ContentControl x:Name="Extra" Focusable="False"/>
   </StackPanel>
-</Border>
+</Button>
 '@
     $tile.FindName('Icon').Text = ConvertTo-Glyph $Tool.icon
     $tile.FindName('Name').Text = $Tool.name
+    $tile.FindName('Desc').Text = Get-ToolSummary $Tool
     Connect-ToolInstall $tile $Tool
+    Connect-ToolOpen $tile $Tool
     $tile
 }
 
@@ -633,7 +642,7 @@ function Show-Home {
         if ($g.Key -eq 'available' -and -not $g.Items) { continue }
         [void]$panel.Children.Add((New-GroupHeader $g.Key $g.Title $g.Items.Count))
         if ($script:prefs.Collapsed[$g.Key]) { continue }
-        if (-not $g.Items) { [void]$panel.Children.Add((New-Hint 'Todavía no hay ninguna. Instálalas desde la lista de abajo.')); continue }
+        if (-not $g.Items) { [void]$panel.Children.Add((New-Hint 'No hay herramientas instaladas.')); continue }
         $container = if ($grid) { New-Ui '<UniformGrid Columns="2" Margin="0,0,-4,0"/>' } else { $panel }
         foreach ($t in $g.Items) {
             $item = if ($g.Key -eq 'installed') {
@@ -652,10 +661,25 @@ function Show-Home {
     $script:lastSignature = Get-HomeSignature
 }
 
+$NotInstalledCardXaml = @'
+<Border Style="{StaticResource Card}">
+  <StackPanel>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+        <TextBlock Style="{StaticResource Body}" Text="No instalada"/>
+        <TextBlock Style="{StaticResource Caption}" Text="Se instala para el usuario actual, sin permisos de administrador."/>
+      </StackPanel>
+      <Button x:Name="Install" Grid.Column="1" Style="{StaticResource AccentButton}" Content="Instalar" VerticalAlignment="Center"/>
+    </Grid>
+    <ContentControl x:Name="Extra" Focusable="False"/>
+  </StackPanel>
+</Border>
+'@
+
 function Show-ToolPage([string]$Id) {
     $t = $tools | Where-Object id -eq $Id
     $state = Get-ToolState $t
-    if ($state -eq 'NotInstalled' -and -not $busy.ContainsKey($Id)) { Show-Home; return }
     $first = $script:page -ne "tool:$Id"
     $script:page = "tool:$Id"
     $script:PageSignature = $null
@@ -664,6 +688,19 @@ function Show-ToolPage([string]$Id) {
     $desc = New-Hint $t.description
     $desc.Margin = '4,4,0,12'
     [void]$panel.Children.Add($desc)
+
+    # Sin instalar: solo la descripción completa y el botón de instalar
+    if ($state -eq 'NotInstalled') {
+        $card = New-Ui $NotInstalledCardXaml
+        Connect-ToolInstall $card $t
+        [void]$panel.Children.Add($card)
+        $script:settingsSignature = $null
+        $script:PageSignature = { Get-ToolPageSignature }
+        $script:lastSignature = Get-ToolPageSignature
+        Set-Page $panel $t.name $true
+        if ($first) { $ui.Scroll.ScrollToTop() }
+        return
+    }
 
     $status = Get-StatusText $t $state
     $row = New-ToggleRow 'Activada' $status[0] ($state -eq 'Enabled') { param($tool, $on) Start-Action $tool $(if ($on) { 'enable' } else { 'disable' }) } $t
@@ -733,7 +770,7 @@ function Show-SettingsPage {
     $script:PageSignature = $null
     $panel = New-Ui '<StackPanel/>'
     [void]$panel.Children.Add((New-SectionHeader 'General'))
-    [void]$panel.Children.Add((New-ToggleRow 'Iniciar con Windows' 'Deja el icono en la bandeja al iniciar sesión.' (Test-ManagerAutostart) { param($a, $on) Set-ManagerAutostart $on } $null))
+    [void]$panel.Children.Add((New-ToggleRow 'Iniciar con Windows' 'Inicia PC Toolkit en la bandeja del sistema al iniciar sesión.' (Test-ManagerAutostart) { param($a, $on) Set-ManagerAutostart $on } $null))
 
     [void]$panel.Children.Add((New-SectionHeader 'Actualizaciones'))
     $card = New-Ui @'
@@ -742,7 +779,7 @@ function Show-SettingsPage {
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel VerticalAlignment="Center">
       <TextBlock x:Name="T" Style="{StaticResource Body}"/>
-      <TextBlock x:Name="D" Style="{StaticResource Caption}" Text="Se descargan de GitHub."/>
+      <TextBlock x:Name="D" Style="{StaticResource Caption}" Text="Las actualizaciones se descargan desde GitHub."/>
     </StackPanel>
     <Button x:Name="Check" Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Buscar"/>
   </Grid>
@@ -854,7 +891,7 @@ function Set-ToolHotkey($Tool, $Keys) {
         $wanted = Get-ToolHotkey $Tool
         Save-ToolHotkey $Tool $previous
         Update-Hotkeys
-        Show-Error "$(Format-Hotkey $wanted) ya lo usa otra aplicación. Se mantiene $(Format-Hotkey $previous)."
+        Show-Error "Otra aplicación está usando $(Format-Hotkey $wanted). Se mantiene $(Format-Hotkey $previous)."
     }
 }
 
@@ -924,7 +961,7 @@ $win.Add_PreviewKeyDown({
     if ($mods -band [Windows.Input.ModifierKeys]::Shift)   { $parts += 'Shift' }
     if ($mods -band [Windows.Input.ModifierKeys]::Windows) { $parts += 'Win' }
     if (-not $name -or -not ($parts | Where-Object { $_ -ne 'Shift' })) {
-        $script:captureHint = 'Usa Ctrl, Alt o Win junto a una letra, un número o una tecla F.'
+        $script:captureHint = 'La combinación debe incluir Ctrl, Alt o Win y una letra, un número o una tecla de función.'
         Update-Page
         return
     }
@@ -943,17 +980,17 @@ function New-HotkeySection($Tool) {
     $keys = Get-ToolHotkey $Tool
     $info = $card.FindName('Info')
     if ($script:capturing -eq $Tool.id) {
-        $card.FindName('Keys').Text = 'Pulsa la nueva combinación...'
+        $card.FindName('Keys').Text = 'Pulsa la nueva combinación de teclas'
         $card.FindName('Keys').Foreground = $app.Resources['AccentBrush']
-        $info.Text = if ($script:captureHint) { $script:captureHint } else { 'Por ejemplo Ctrl + Alt + A. Esc para cancelar.' }
+        $info.Text = if ($script:captureHint) { $script:captureHint } else { 'Por ejemplo, Ctrl + Alt + A. Pulsa Esc para cancelar.' }
         $card.FindName('Change').Content = 'Cancelar'
         $card.FindName('More').Visibility = 'Collapsed'
     } else {
         $card.FindName('Keys').Text = if ($keys) { Format-Hotkey $keys } else { 'Sin atajo' }
         $info.Text = if (-not $keys) { 'Desactivado.' }
-                     elseif ($hotkeyStatus[$Tool.id] -eq 'ok') { 'Funciona mientras PC Toolkit esté en la bandeja.' }
-                     elseif ($hotkeyStatus[$Tool.id] -eq 'ocupado') { 'Otra aplicación ya usa este atajo, así que ahora no funciona.' }
-                     else { 'Funcionará cuando la herramienta esté activada.' }
+                     elseif ($hotkeyStatus[$Tool.id] -eq 'ok') { 'Disponible mientras PC Toolkit esté en ejecución.' }
+                     elseif ($hotkeyStatus[$Tool.id] -eq 'ocupado') { 'Otra aplicación está usando esta combinación de teclas.' }
+                     else { 'Disponible cuando la herramienta está activada.' }
         if ($hotkeyStatus[$Tool.id] -eq 'ocupado' -and $keys) { $info.Foreground = $app.Resources['DangerBrush'] }
         if (-not $keys) { $card.FindName('Disable').Visibility = 'Collapsed' }
         if ($keys -eq $Tool.hotkey.keys) { $card.FindName('Reset').Visibility = 'Collapsed' }

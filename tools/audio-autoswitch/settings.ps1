@@ -17,13 +17,13 @@ $devices = Get-AudioDevices
 $panel   = New-Ui '<StackPanel/>'
 
 # 1. Cambio manual entre los habilitados conectados (y el que suene, aunque no lo esté)
-[void]$panel.Children.Add((New-SectionHeader 'Sonando ahora' 'Tus dispositivos habilitados que están conectados. Pulsa uno para que suene.'))
+[void]$panel.Children.Add((New-SectionHeader 'Salida actual' 'Dispositivos habilitados y conectados. Selecciona uno para usarlo como salida de audio.'))
 $playable = @(Get-EnabledAudioDevices)
 $current = @($devices | Where-Object IsDefault)[0]
 if ($current -and $playable.Id -notcontains $current.Id) { $playable = @($current) + $playable }
 if (-not $playable) { [void]$panel.Children.Add((New-Hint 'No hay ningún dispositivo habilitado conectado.')) }
 foreach ($d in $playable) {
-    $detail = if (-not (Test-AudioEnabled $d $cfg)) { 'No está habilitado' }
+    $detail = if (-not (Test-AudioEnabled $d $cfg)) { 'No habilitado' }
     [void]$panel.Children.Add((New-ChoiceRow $d.Name $detail $d.IsDefault {
         param($id)
         [PcToolkit.Audio.Endpoints]::SetDefault($id)
@@ -32,21 +32,21 @@ foreach ($d in $playable) {
 }
 
 # 2. Habilitados: cambian solos al encenderse y son los del cambio rápido y el atajo
-[void]$panel.Children.Add((New-SectionHeader 'Dispositivos habilitados' 'El sonido pasa a estos en cuanto se encienden (y vuelve al anterior al apagarlos). Son también los que salen en el cambio rápido de la portada y entre los que salta el atajo.'))
+[void]$panel.Children.Add((New-SectionHeader 'Dispositivos habilitados' 'Al conectarse, pasan a ser la salida de audio; al desconectarse, se vuelve al anterior disponible. También son los que aparecen en el cambio rápido y entre los que alterna el atajo de teclado.'))
 foreach ($d in $devices) {
     $on = Test-AudioEnabled $d $cfg
-    $detail = if ($d.IsActive) { 'Conectado' } else { 'Apagado o desconectado' }
+    $detail = if ($d.IsActive) { 'Conectado' } else { 'Desconectado' }
     [void]$panel.Children.Add((New-ToggleRow $d.Name $detail $on {
         param($id, $isOn)
         $c = Get-AudioConfig
         $c.Auto[$id] = $isOn
         Save-AudioConfig $c
-        Update-Page   # que "Sonando ahora" y la portada lo reflejen al momento
+        Update-Page   # que la salida actual y la portada lo reflejen al momento
     } $d.Id))
 }
 
 # 3. Dispositivo por defecto (cuando ya no queda ninguno de los anteriores encendido)
-[void]$panel.Children.Add((New-SectionHeader 'Dispositivo por defecto' 'Al que se vuelve cuando apagas todos. Sin dispositivo por defecto, decide Windows.'))
+[void]$panel.Children.Add((New-SectionHeader 'Dispositivo predeterminado' 'Salida que se usa cuando no queda ningún dispositivo habilitado conectado. Si no se define, la elige Windows.'))
 $setDefault = {
     param($id)
     $c = Get-AudioConfig
@@ -54,15 +54,15 @@ $setDefault = {
     Save-AudioConfig $c
     Update-Page
 }
-[void]$panel.Children.Add((New-ChoiceRow 'Sin dispositivo por defecto' '' (-not $cfg.DefaultRenderId) $setDefault ''))
+[void]$panel.Children.Add((New-ChoiceRow 'Ninguno (lo decide Windows)' '' (-not $cfg.DefaultRenderId) $setDefault ''))
 foreach ($d in $devices) {
-    $detail = if ($d.IsActive) { '' } else { 'Apagado o desconectado' }
+    $detail = if ($d.IsActive) { '' } else { 'Desconectado' }
     [void]$panel.Children.Add((New-ChoiceRow $d.Name $detail ($cfg.DefaultRenderId -eq $d.Id) $setDefault $d.Id))
 }
 
 # 4. Micrófono
 [void]$panel.Children.Add((New-SectionHeader 'Micrófono'))
-[void]$panel.Children.Add((New-ToggleRow 'Usar también su micrófono' 'Al cambiar de dispositivo, el micro pasa a ser el del mismo aparato. En Bluetooth el sonido pierde calidad mientras se usa el micro.' $cfg.FollowMic {
+[void]$panel.Children.Add((New-ToggleRow 'Cambiar también el micrófono' 'Usa como entrada el micrófono del mismo dispositivo. En dispositivos Bluetooth, usar el micrófono puede reducir la calidad del sonido.' $cfg.FollowMic {
     param($a, $isOn)
     $c = Get-AudioConfig
     $c.FollowMic = $isOn

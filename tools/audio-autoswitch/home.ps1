@@ -36,11 +36,11 @@ $root = New-Ui @'
 '@
 $pick = $root.FindName('Pick')
 $menu = $root.FindName('Menu')
-$root.FindName('Name').Text = if ($current) { $current.Name } else { 'Ningún dispositivo de sonido' }
-$root.FindName('Info').Text = if (-not $all) { 'No tienes dispositivos habilitados' }
-                              else { "Sonando  ·  $($devices.Count) de $($all.Count) conectados" }
+$root.FindName('Name').Text = if ($current) { $current.Name } else { 'Sin dispositivo de audio' }
+$root.FindName('Info').Text = if (-not $all) { 'No hay dispositivos habilitados' }
+                              else { "Salida actual  ·  $($devices.Count) de $($all.Count) conectados" }
 foreach ($d in $all) {
-    $detail = if (-not $d.IsActive) { 'Apagado o desconectado' }
+    $detail = if (-not $d.IsActive) { 'Desconectado' }
     $row = New-ChoiceRow $d.Name $detail $d.IsDefault {
         param($id)
         [PcToolkit.Audio.Endpoints]::SetDefault($id)

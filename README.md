@@ -13,8 +13,8 @@ aparte de PowerShell, que ya viene con Windows.
 
 | Herramienta | Qué hace |
 |---|---|
-| **Audio AutoSwitch** | Lo último que enciendes (cascos Bluetooth o USB) pasa a sonar; al apagarlo vuelve al anterior que siga encendido y, al final, a tu dispositivo por defecto. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
-| **Barra de tareas** | Gestiona la barra de tareas (ocultarse, alineación de los iconos y en qué pantallas aparece) con un perfil normal y otro opcional para Escritorio Remoto. Botón y atajo (**Ctrl + Alt + B**) para refrescarla cuando se queda escondida. |
+| **Audio AutoSwitch** | Cambia la salida de audio al conectar un dispositivo (auriculares Bluetooth, USB...) y vuelve al anterior disponible al desconectarlo. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
+| **Barra de tareas** | Configura posición, ocultación automática, alineación y tamaño de los iconos, búsqueda y pantallas de la barra de tareas, con un perfil independiente para Escritorio remoto. Botón y atajo (**Ctrl + Alt + B**) para restablecerla cuando la ocultación automática deja de responder. |
 
 ## Instalar en un PC nuevo
 
@@ -87,17 +87,16 @@ En su página de ajustes:
 
 ### Barra de tareas
 
-- **Perfil normal** (delante del PC) y **perfil de Escritorio Remoto** (opcional; si no, se
-  usa el normal). Cada uno con: ocultar automáticamente, alineación de los iconos
-  (izquierda/centro) y mostrar en todas las pantallas o solo en la principal. Se aplican
-  al iniciar sesión, al conectar por Escritorio Remoto y al volver a la consola.
-- **Refrescar** (botón en la portada y en su página, o **Ctrl + Alt + B**): arregla la barra
-  autoocultable cuando se queda escondida y no sale con el ratón (hace lo mismo que
-  desmarcar y volver a marcar "Ocultar automáticamente").
+- **Perfil normal** y **perfil de Escritorio remoto** (opcional; si está desactivado se aplica
+  el normal). Cada perfil define: posición (abajo o arriba; también a los lados en
+  Windows 10), ocultación automática, alineación y tamaño de los iconos, búsqueda (oculta,
+  icono o cuadro) y si la barra aparece en todas las pantallas. Se aplican al iniciar sesión,
+  al conectarse por Escritorio remoto y al volver a la sesión local.
+- **Refrescar** (botón en la portada y en su página, o **Ctrl + Alt + B**): restablece la
+  barra cuando la ocultación automática deja de responder.
 
-> En Windows 11 la barra ya no se puede poner arriba ni a los lados, por eso no hay
-> opción de posición.
-
+> Cambiar la posición reinicia el Explorador de Windows. Windows 11 no admite la barra en
+> los laterales (queda vacía), por eso ahí solo se ofrece abajo y arriba.
 > Los cascos con receptor USB (p. ej. Razer Barracuda X) solo "se encienden" para
 > Windows al enchufar el receptor: con los cascos apagados el receptor sigue
 > apareciendo como un dispositivo activo y no avisa de nada (comprobado también por
@@ -137,7 +136,7 @@ Crea `tools/<id>/` con:
 
 | Archivo | Obligatorio | Qué hace |
 |---|---|---|
-| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos) |
+| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `summary` (3-4 palabras para la portada), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos) |
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`) |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
 | `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |

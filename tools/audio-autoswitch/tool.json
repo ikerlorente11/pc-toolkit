@@ -2,9 +2,10 @@
   "id": "audio-autoswitch",
   "name": "Audio AutoSwitch",
   "icon": "E7F6",
-  "description": "Al encender unos auriculares el sonido pasa a ellos; al apagarlos vuelve a lo anterior que siga encendido.",
+  "summary": "Cambio automático de audio",
+  "description": "Cambia automáticamente la salida de audio al conectar un dispositivo, como unos auriculares Bluetooth o USB, y vuelve al anterior disponible al desconectarlo. Permite elegir qué dispositivos se usan, uno predeterminado y cambiar entre ellos desde el panel o con un atajo de teclado.",
   "task": "AudioAutoSwitch",
   "process": "AudioAutoSwitch\\.ps1",
   "log": "AudioAutoSwitch.log",
-  "hotkey": { "keys": "Ctrl+Alt+A", "script": "hotkey.ps1", "description": "Pasa al siguiente dispositivo conectado" }
+  "hotkey": { "keys": "Ctrl+Alt+A", "script": "hotkey.ps1", "description": "Cambia al siguiente dispositivo habilitado y conectado" }
 }
