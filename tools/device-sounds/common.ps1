@@ -1,0 +1,89 @@
+﻿# common.ps1 - Sonidos de dispositivos: biblioteca, configuración y aplicar/restaurar los sonidos de
+# Windows "Conectar dispositivo" y "Desconectar dispositivo" (HKCU\AppEvents, sin admin ni procesos).
+# Lo cargan con "." Apply.ps1 (tarea al iniciar sesión), disable.ps1, settings.ps1 y home.ps1.
+
+$script:DeviceSoundsDir  = $PSScriptRoot
+$script:DeviceSoundsData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\device-sounds'
+
+# Biblioteca: sounds\<id>.wav (WAV PCM, el formato que admite Windows para los sonidos del sistema)
+$script:DeviceSoundLibrary = [ordered]@{
+    'desenvainar-espada' = 'Desenvainar espada'
+    'desenvainar-katana' = 'Desenvainar katana'
+    'envainar-espada'    = 'Envainar espada'
+    'envainar-espada-2'  = 'Envainar espada 2'
+    'yamete-kudasai'     = 'Yamete kudasai'
+    'ahh'                = 'Ahh'
+    'yiahhh'             = 'Yiahhh'
+    'globo'              = 'Pop de globo'
+    'xp-conectar'        = 'Windows XP: conectar'
+    'xp-desconectar'     = 'Windows XP: desconectar'
+    'discord-entrar'     = 'Discord: entrar'
+    'discord-salir'      = 'Discord: salir'
+    'vine-boom'          = 'Vine boom'
+    'bruh'               = 'Bruh'
+}
+
+# Eventos de Windows que se personalizan
+$script:DeviceSoundEvents = [ordered]@{ Connect = 'DeviceConnect'; Disconnect = 'DeviceDisconnect' }
+
+function script:Get-DeviceSoundLabel([string]$Id) {
+    switch ($Id) { 'windows' { 'Predeterminado de Windows' } 'none' { 'Sin sonido' } default { $script:DeviceSoundLibrary[$Id] } }
+}
+
+function script:Test-DeviceSoundId([string]$Id) { $Id -in 'windows', 'none' -or $script:DeviceSoundLibrary.Contains($Id) }
+
+function script:Get-DeviceSoundsConfig {
+    $path = Join-Path $script:DeviceSoundsData 'config.json'
+    $c = if (Test-Path $path) { try { Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json } catch {} }
+    @{
+        Connect    = if (Test-DeviceSoundId $c.Connect) { [string]$c.Connect } else { 'desenvainar-espada' }
+        Disconnect = if (Test-DeviceSoundId $c.Disconnect) { [string]$c.Disconnect } else { 'envainar-espada' }
+    }
+}
+
+function script:Save-DeviceSoundsConfig($Config) {
+    New-Item -ItemType Directory -Force -Path $script:DeviceSoundsData | Out-Null
+    $Config | ConvertTo-Json | Set-Content (Join-Path $script:DeviceSoundsData 'config.json') -Encoding UTF8
+}
+
+function script:Get-EventKey([string]$WindowsEvent, [string]$Which) { "HKCU:\AppEvents\Schemes\Apps\.Default\$WindowsEvent\$Which" }
+
+# Sonido original de Windows para el evento (el valor de .Default, con %SystemRoot% expandido)
+function script:Get-WindowsDeviceSound([string]$WindowsEvent) {
+    $k = Get-Item (Get-EventKey $WindowsEvent '.Default') -ErrorAction SilentlyContinue
+    if ($k) { [Environment]::ExpandEnvironmentVariables([string]$k.GetValue('')) } else { '' }
+}
+
+# Ruta del archivo para un id: un sonido de la biblioteca, el de Windows o '' (sin sonido)
+function script:Get-DeviceSoundPath([string]$Id, [string]$WindowsEvent) {
+    switch ($Id) {
+        'windows' { Get-WindowsDeviceSound $WindowsEvent }
+        'none'    { '' }
+        default   { Join-Path $script:DeviceSoundsDir "sounds\$Id.wav" }
+    }
+}
+
+function script:Set-EventSound([string]$WindowsEvent, [string]$Path) {
+    $key = Get-EventKey $WindowsEvent '.Current'
+    if (-not (Test-Path $key)) { New-Item $key -Force | Out-Null }
+    Set-ItemProperty $key '(default)' $Path
+}
+
+# Aplica la configuración (Windows lee el registro cada vez que reproduce el sonido: efecto inmediato)
+function script:Invoke-DeviceSounds {
+    $cfg = Get-DeviceSoundsConfig
+    foreach ($name in $script:DeviceSoundEvents.Keys) {
+        $ev = $script:DeviceSoundEvents[$name]
+        Set-EventSound $ev (Get-DeviceSoundPath $cfg[$name] $ev)
+    }
+}
+
+# Vuelve a los sonidos de Windows
+function script:Restore-DeviceSounds {
+    foreach ($ev in $script:DeviceSoundEvents.Values) { Set-EventSound $ev (Get-WindowsDeviceSound $ev) }
+}
+
+# Reproduce un archivo WAV (muestra en el gestor)
+function script:Invoke-DeviceSoundPreview([string]$Path) {
+    if ($Path -and (Test-Path $Path)) { (New-Object System.Media.SoundPlayer $Path).Play() }
+}

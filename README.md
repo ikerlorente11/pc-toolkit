@@ -16,6 +16,7 @@ aparte de PowerShell, que ya viene con Windows.
 | **Audio AutoSwitch** | Cambia la salida de audio al conectar un dispositivo (auriculares Bluetooth, USB...) y vuelve al anterior disponible al desconectarlo. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
 | **Barra de tareas** | Configura posición, ocultación automática, alineación y tamaño de los iconos, búsqueda y pantallas de la barra de tareas, con un perfil independiente para Escritorio remoto. Botón y atajo (**Ctrl + Alt + B**) para restablecerla cuando la ocultación automática deja de responder. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
+| **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
 
 ## Instalar en un PC nuevo
 
@@ -104,6 +105,17 @@ En su página de ajustes:
 - **Volumen**: el de los sonidos, sin cambiar el del sistema.
 - **Probar**: campo para escribir y escuchar el sonido y el volumen elegidos.
 - **Iniciar con Windows**: si está desactivado, solo suena mientras la herramienta esté activada.
+
+### Sonidos de dispositivos
+
+- Un sonido para **conectar** y otro para **desconectar**, elegidos de la biblioteca (o el
+  predeterminado de Windows, o sin sonido); al elegirlo suena una muestra.
+- **Probar** reproduce los sonidos que Windows tiene configurados en ese momento.
+- No hay proceso en segundo plano: cambia los sonidos del sistema de tu usuario y los
+  vuelve a aplicar al iniciar sesión. Al desactivarla o desinstalarla vuelven los de Windows.
+
+> Los sonidos de Keyboard Sound y de Sonidos de dispositivos proceden de
+> [myinstants.com](https://www.myinstants.com), recortados y normalizados.
 
 > Los cascos con receptor USB (p. ej. Razer Barracuda X) solo "se encienden" para
 > Windows al enchufar el receptor: con los cascos apagados el receptor sigue

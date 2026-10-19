@@ -1,0 +1,9 @@
+{
+  "id": "device-sounds",
+  "name": "Sonidos de dispositivos",
+  "icon": "E88E",
+  "summary": "Sonidos al conectar dispositivos",
+  "description": "Cambia los sonidos que reproduce Windows al conectar y desconectar un dispositivo USB u otro hardware. Incluye una biblioteca de sonidos para elegir uno distinto para cada caso, y al desactivarla vuelven los sonidos de Windows.",
+  "task": "PcToolkitDeviceSounds",
+  "log": "DeviceSounds.log"
+}
