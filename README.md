@@ -14,7 +14,7 @@ aparte de PowerShell, que ya viene con Windows.
 | Herramienta | Qué hace |
 |---|---|
 | **Audio AutoSwitch** | Lo último que enciendes (cascos Bluetooth o USB) pasa a sonar; al apagarlo vuelve al anterior que siga encendido y, al final, a tu dispositivo por defecto. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
-| **Taskbar RDP** | Barra de tareas siempre visible cuando te conectas por Escritorio Remoto y autoocultable cuando estás delante del PC. |
+| **Barra de tareas** | Gestiona la barra de tareas (ocultarse, alineación de los iconos y en qué pantallas aparece) con un perfil normal y otro opcional para Escritorio Remoto. Botón y atajo (**Ctrl + Alt + B**) para refrescarla cuando se queda escondida. |
 
 ## Instalar en un PC nuevo
 
@@ -84,6 +84,19 @@ En su página de ajustes:
 - **Dispositivo por defecto**: al que volver cuando ya no queda nada encendido, o
   ninguno para que decida Windows.
 - **Usar también su micrófono**: el micro sigue al dispositivo de salida.
+
+### Barra de tareas
+
+- **Perfil normal** (delante del PC) y **perfil de Escritorio Remoto** (opcional; si no, se
+  usa el normal). Cada uno con: ocultar automáticamente, alineación de los iconos
+  (izquierda/centro) y mostrar en todas las pantallas o solo en la principal. Se aplican
+  al iniciar sesión, al conectar por Escritorio Remoto y al volver a la consola.
+- **Refrescar** (botón en la portada y en su página, o **Ctrl + Alt + B**): arregla la barra
+  autoocultable cuando se queda escondida y no sale con el ratón (hace lo mismo que
+  desmarcar y volver a marcar "Ocultar automáticamente").
+
+> En Windows 11 la barra ya no se puede poner arriba ni a los lados, por eso no hay
+> opción de posición.
 
 > Los cascos con receptor USB (p. ej. Razer Barracuda X) solo "se encienden" para
 > Windows al enchufar el receptor: con los cascos apagados el receptor sigue

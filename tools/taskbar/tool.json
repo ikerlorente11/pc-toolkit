@@ -1,0 +1,9 @@
+{
+  "id": "taskbar",
+  "name": "Barra de tareas",
+  "icon": "E7F4",
+  "description": "Gestiona cómo se comporta la barra de tareas (ocultarse, alineación y pantallas), con un perfil distinto para cuando te conectas por Escritorio Remoto. Y un botón para refrescarla cuando se queda escondida.",
+  "task": "PcToolkitTaskbar",
+  "log": "Taskbar.log",
+  "hotkey": { "keys": "Ctrl+Alt+B", "script": "refresh.ps1", "description": "Refresca la barra de tareas cuando se queda escondida y no sale con el ratón" }
+}

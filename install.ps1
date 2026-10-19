@@ -54,8 +54,9 @@ foreach ($item in 'core', 'manager', 'tools', 'assets', 'VERSION', 'LICENSE', 'u
 Import-Module (Join-Path $app 'core\Toolkit.psm1') -Force
 $all = @(Get-Tools)
 
-# 3. Instalaciones antiguas de los repos sueltos (audio-autoswitch, taskbar-rdp): se migran solas
-$legacy = @{ 'audio-autoswitch' = 'AudioAutoSwitch'; 'taskbar-rdp' = 'TaskbarRdp' }
+# 3. Instalaciones antiguas (repos sueltos audio-autoswitch/taskbar-rdp, o Taskbar RDP de PC Toolkit 1.x):
+#    se migran solas
+$legacy = @{ 'audio-autoswitch' = 'AudioAutoSwitch'; 'taskbar' = 'TaskbarRdp' }
 $legacyFound = @(foreach ($id in $legacy.Keys) {
     $dir = Join-Path $env:LOCALAPPDATA $legacy[$id]
     if (Test-Path $dir) {
@@ -65,6 +66,7 @@ $legacyFound = @(foreach ($id in $legacy.Keys) {
         $id
     }
 })
+if ((Get-ScheduledTask -TaskName 'TaskbarRdp' -ErrorAction SilentlyContinue) -and $legacyFound -notcontains 'taskbar') { $legacyFound += 'taskbar' }
 
 # 4. Que herramientas instalar ("-Tools a,b" llega como un solo texto si se lanza con -File)
 $Tools = @($Tools | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim() })
