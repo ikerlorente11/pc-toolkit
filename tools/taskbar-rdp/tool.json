@@ -1,6 +1,7 @@
 {
   "id": "taskbar-rdp",
   "name": "Taskbar RDP",
+  "icon": "E7F4",
   "description": "Barra de tareas siempre visible cuando te conectas por Escritorio Remoto y autoocultable cuando estás delante del PC.",
   "task": "TaskbarRdp",
   "log": "TaskbarRdp.log"

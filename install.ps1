@@ -37,10 +37,15 @@ $root = Join-Path $env:LOCALAPPDATA 'PcToolkit'
 $app  = Join-Path $root 'app'
 $firstInstall = -not (Test-Path $app)
 
-Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
-    Where-Object { $_.CommandLine -match 'manager\\PcToolkit\.ps1' } |
-    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-if (Test-Path $app) { Remove-Item $app -Recurse -Force }
+$managers = @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
+    Where-Object { $_.CommandLine -match 'manager\\PcToolkit\.ps1' })
+foreach ($m in $managers) { Stop-Process -Id $m.ProcessId -Force -ErrorAction SilentlyContinue }
+foreach ($m in $managers) { Wait-Process -Id $m.ProcessId -Timeout 10 -ErrorAction SilentlyContinue }
+# Reintentos por si algun archivo sigue bloqueado un instante
+for ($i = 1; (Test-Path $app); $i++) {
+    try { Remove-Item $app -Recurse -Force; break }
+    catch { if ($i -ge 5) { throw }; Start-Sleep -Seconds 1 }
+}
 New-Item -ItemType Directory -Force -Path $app | Out-Null
 foreach ($item in 'core', 'manager', 'tools', 'assets', 'VERSION', 'LICENSE', 'uninstall.ps1') {
     Copy-Item (Join-Path $src $item) $app -Recurse -Force

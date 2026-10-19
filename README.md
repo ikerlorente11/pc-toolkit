@@ -13,7 +13,7 @@ aparte de PowerShell, que ya viene con Windows.
 
 | Herramienta | Qué hace |
 |---|---|
-| **Audio AutoSwitch** | Al encender los auriculares Bluetooth pasa la salida de sonido (y opcionalmente el micro) a ellos; al apagarlos vuelve a los altavoces. |
+| **Audio AutoSwitch** | Lo último que enciendes (cascos Bluetooth o USB) pasa a sonar; al apagarlo vuelve al anterior que siga encendido y, al final, a tu dispositivo por defecto. Cambio manual entre los conectados desde el gestor. |
 | **Taskbar RDP** | Barra de tareas siempre visible cuando te conectas por Escritorio Remoto y autoocultable cuando estás delante del PC. |
 
 ## Instalar en un PC nuevo
@@ -25,8 +25,7 @@ descarga siempre la última versión, así que el `.exe` sirve aunque sea antigu
 > Como el `.exe` no está firmado, Windows puede mostrar *"Windows protegió su PC"*:
 > pulsa **Más información → Ejecutar de todas formas**.
 
-Si eliges Audio AutoSwitch, **ten los auriculares encendidos**: se abrirá una
-ventana para elegirlos (y los altavoces y micros de respaldo).
+No hay que configurar nada al instalar: todo se ajusta después desde el gestor.
 
 Sin descargar nada, desde **PowerShell** (normal, sin admin):
 
@@ -49,18 +48,31 @@ configuración de los auriculares.
 
 ## El gestor
 
-Está en el menú Inicio (**PC Toolkit**) y, por defecto, arranca con Windows en la
-bandeja del sistema.
+Pulsa el icono de PC Toolkit en la bandeja del sistema: se abre un panel abajo a
+la derecha, como el de PowerToys (redondeado, con fondo de cristal en Windows 11 y
+el tema y color de acento de tu Windows). También está en el menú Inicio y, por
+defecto, arranca con Windows.
 
-- **Interruptor**: activa o desactiva la herramienta sin desinstalarla.
-- **Configurar**: vuelve a elegir dispositivos (Audio AutoSwitch).
-- **Ver log**: abre su registro de actividad.
-- **Instalar / Desinstalar**: añade o quita la herramienta en este PC.
-- **Buscar actualizaciones**: compara con la versión de GitHub y se actualiza
-  respetando lo que tengas activado o desactivado.
+- **Instaladas**: interruptor para activarlas o desactivarlas sin desinstalarlas;
+  pulsa una para entrar en sus ajustes, ver su registro o desinstalarla.
+- **Disponibles**: botón **Instalar**. Todo se hace en segundo plano con una barra
+  de progreso, sin congelar el panel.
+- **Ajustes** (rueda dentada): iniciar con Windows, buscar actualizaciones (se
+  instalan solas respetando lo que tengas activado), abrir la carpeta y salir.
 
-Clic derecho en el icono de la bandeja para activar o desactivar herramientas
-rápidamente.
+### Ajustes de Audio AutoSwitch
+
+- **Sonando ahora**: cambia a mano entre los dispositivos conectados sin apagar nada.
+- **Cambiar solo al encender**: qué dispositivos se ponen solos al encenderse. Por
+  defecto, los Bluetooth, los USB y los auriculares; no los monitores HDMI ni los
+  altavoces internos (si Windows cambia solo a un monitor que despierta, se vuelve
+  a lo que sonaba).
+- **Dispositivo por defecto**: al que volver cuando ya no queda nada encendido, o
+  ninguno para que decida Windows.
+- **Usar también su micrófono**: el micro sigue al dispositivo de salida.
+
+> Los cascos con receptor USB (p. ej. Razer Barracuda X) solo "se encienden" para
+> Windows al enchufar el receptor, no al encender los cascos.
 
 ## Actualizar y desinstalar
 
@@ -78,7 +90,8 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\PcToolkit\app\uninst
 install.ps1 / uninstall.ps1   instalador global
 core/Toolkit.psm1             funciones comunes (estado, activar, instalar...)
 core/run-hidden.vbs           lanza scripts de PowerShell sin ventana
-manager/PcToolkit.ps1         gestor (WinForms + icono de bandeja)
+manager/PcToolkit.ps1         gestor: icono de bandeja + panel WPF (theme.xaml, flyout.xaml)
+core/tool-action.ps1          ejecuta instalar/activar/... en segundo plano para el gestor
 setup/                        PCToolkit-Setup.exe (C#; se compila con setup/build.ps1)
 tools/<id>/                   una carpeta por herramienta
 ```
@@ -95,9 +108,9 @@ Crea `tools/<id>/` con:
 
 | Archivo | Obligatorio | Qué hace |
 |---|---|---|
-| `tool.json` | sí | `id`, `name`, `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos) |
+| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos) |
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`) |
-| `configure.ps1` | no | Ventana de configuración; devuelve `$true` si se guardó |
+| `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
 | `disable.ps1` | no | Deja el sistema como estaba al desactivarla |
 
 El gestor y el instalador la detectan solos. Sube `VERSION` para que los PCs

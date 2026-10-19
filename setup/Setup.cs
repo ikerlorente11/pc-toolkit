@@ -1,4 +1,4 @@
-// Setup.cs - Instalador gráfico de PC Toolkit (PCToolkit-Setup.exe).
+﻿// Setup.cs - Instalador gráfico de PC Toolkit (PCToolkit-Setup.exe).
 // Descarga la última versión de GitHub, deja elegir las herramientas y ejecuta install.ps1.
 // Se compila con setup\build.ps1 (csc de .NET Framework, que ya viene con Windows).
 using System;
@@ -19,8 +19,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("Instalador de PC Toolkit")]
 [assembly: AssemblyProduct("PC Toolkit")]
 [assembly: AssemblyCompany("ikerlorente11")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 static class Program {
     [STAThread]
@@ -230,7 +230,7 @@ class SetupForm : Form {
             y += S(76);
         }
         Label hint = new Label();
-        hint.Text = "Si instalas Audio AutoSwitch, ten los auriculares encendidos: se abrirá una ventana para elegirlos.";
+        hint.Text = "Todo se puede ajustar después desde el icono de PC Toolkit en la bandeja del sistema.";
         hint.ForeColor = sub;
         hint.AutoSize = false;
         hint.Location = new Point(0, y);

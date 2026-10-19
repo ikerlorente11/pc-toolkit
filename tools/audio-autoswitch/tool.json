@@ -1,7 +1,8 @@
 {
   "id": "audio-autoswitch",
   "name": "Audio AutoSwitch",
-  "description": "Cambia la salida de sonido (y el micro) a los auriculares Bluetooth al encenderlos, y vuelve a los altavoces al apagarlos.",
+  "icon": "E7F6",
+  "description": "Al encender unos auriculares el sonido pasa a ellos; al apagarlos vuelve a lo anterior que siga encendido.",
   "task": "AudioAutoSwitch",
   "process": "AudioAutoSwitch\\.ps1",
   "log": "AudioAutoSwitch.log"

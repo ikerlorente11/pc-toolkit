@@ -3,7 +3,7 @@
 # Cada herramienta vive en tools\<id>\ con:
 #   tool.json      manifiesto (id, name, description, task, process opcional, log opcional)
 #   install.ps1    registra su tarea programada (obligatorio)
-#   configure.ps1  ventana de configuracion; devuelve $true si se guardo (opcional)
+#   settings.ps1   pagina de ajustes dentro del gestor (opcional; ver manager\PcToolkit.ps1)
 #   disable.ps1    deja el sistema como estaba al desactivarla (opcional)
 # Estado: sin tarea = no instalada; tarea deshabilitada = desactivada; si no, activa.
 
@@ -24,12 +24,13 @@ function Get-ToolkitRemoteVersion {
     (Invoke-RestMethod "$RepoRaw/VERSION" -UseBasicParsing).Trim()
 }
 
-# Lanza el instalador de GitHub en modo -Update en una consola nueva
+# Lanza el instalador de GitHub en modo -Update, sin ventana (al terminar vuelve a abrir el gestor)
 function Start-ToolkitUpdate {
+    $log = Join-Path $Root 'update.log'
     $cmd = "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; " +
-           "try { & ([scriptblock]::Create((Invoke-RestMethod '$RepoRaw/install.ps1' -UseBasicParsing))) -Update } " +
-           "catch { Write-Host `$_ -ForegroundColor Red; Read-Host 'Pulsa Enter para cerrar' }"
-    Start-Process powershell.exe -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $cmd
+           "try { & ([scriptblock]::Create((Invoke-RestMethod '$RepoRaw/install.ps1' -UseBasicParsing))) -Update *> '$log' } " +
+           "catch { `$_ | Out-File '$log' -Append }"
+    Start-Process powershell.exe -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $cmd
 }
 
 function Get-ToolDataDir([string]$Id) {
@@ -45,7 +46,7 @@ function Get-Tools {
             $tool = Get-Content $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
             $tool | Add-Member -NotePropertyMembers @{
                 Dir          = $_.FullName
-                Configurable = Test-Path (Join-Path $_.FullName 'configure.ps1')
+                HasSettings  = Test-Path (Join-Path $_.FullName 'settings.ps1')
             }
             $tool
         }
@@ -60,11 +61,26 @@ function New-HiddenTaskAction([string]$Script) {
     New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" `"$Script`""
 }
 
+# Estado por COM del Programador de tareas: mucho mas rapido que Get-ScheduledTask
 function Get-ToolState($Tool) {
-    $task = Get-ScheduledTask -TaskName $Tool.task -ErrorAction SilentlyContinue
-    if (-not $task)                     { 'NotInstalled' }
-    elseif ($task.State -eq 'Disabled') { 'Disabled' }
-    else                                { 'Enabled' }
+    if (-not $script:scheduler) {
+        $script:scheduler = New-Object -ComObject Schedule.Service
+        $script:scheduler.Connect()
+    }
+    try { $task = $script:scheduler.GetFolder('\').GetTask($Tool.task) } catch { return 'NotInstalled' }
+    if ($task.Enabled) { 'Enabled' } else { 'Disabled' }
+}
+
+# Ejecuta install/uninstall/enable/disable en otro proceso para no bloquear el gestor.
+# Devuelve el proceso y el archivo donde va escribiendo el progreso.
+function Start-ToolAction($Tool, [ValidateSet('install', 'uninstall', 'enable', 'disable')][string]$Action) {
+    $status = Join-Path $env:TEMP "pctoolkit-$($Tool.id)-$Action-$([guid]::NewGuid().ToString('N')).txt"
+    $psi = New-Object Diagnostics.ProcessStartInfo 'powershell.exe'
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'tool-action.ps1')`" " +
+                     "-Action $Action -Id $($Tool.id) -StatusFile `"$status`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow  = $true
+    [pscustomobject]@{ Process = [Diagnostics.Process]::Start($psi); StatusFile = $status; Action = $Action }
 }
 
 function Get-ToolProcess($Tool) {
@@ -107,15 +123,6 @@ function Uninstall-Tool($Tool) {
     }
     $data = Join-Path $Root "data\$($Tool.id)"
     if (Test-Path $data) { Remove-Item $data -Recurse -Force }
-}
-
-# Abre la ventana de configuracion; si se guarda y la herramienta esta activa, la reinicia
-function Invoke-ToolConfigure($Tool) {
-    $saved = & (Join-Path $Tool.Dir 'configure.ps1')
-    if ($saved -and (Get-ToolState $Tool) -eq 'Enabled') {
-        Stop-ToolProcess $Tool
-        Start-ScheduledTask -TaskName $Tool.task
-    }
 }
 
 # --- Gestor (icono en la bandeja) ---
