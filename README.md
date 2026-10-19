@@ -63,6 +63,8 @@ defecto, arranca con Windows.
   cambio rápido de audio) y cuadrícula (mosaicos compactos de 2 en 2).
 - **Grupos plegables**: pulsa "Instaladas" o "Disponibles" para plegarlos o desplegarlos.
   La vista y los grupos plegados se recuerdan.
+- **Orden**: en Ajustes → Portada → Orden de las herramientas se cambia con flechas; por
+  defecto es alfabético por nombre.
 - **Ajustes** (rueda dentada): iniciar con Windows, buscar actualizaciones (se
   instalan solas respetando lo que tengas activado), abrir la carpeta y salir.
 

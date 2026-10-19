@@ -378,6 +378,7 @@ function Update-Page {
         'settings' { Show-SettingsPage }
         'tool:*'   { Show-ToolPage ($script:page.Substring(5)) }
         'log:*'    { Show-LogPage ($script:page.Substring(4)) }
+        'order'    { Show-OrderPage }
     }
 }
 
@@ -406,16 +407,17 @@ function Get-ToolPageSignature {
     "$(Get-ToolState $t)|$busyText|$($errors[$t.id])|$(if ($t.process) { [bool](Get-ToolProcess $t) })|$own"
 }
 
-# Preferencias de la portada (vista lista/cuadrícula y grupos plegados), en data\manager.json
+# Preferencias de la portada (vista lista/cuadrícula, grupos plegados y orden), en data\manager.json
 $PrefsFile = Join-Path (Get-ToolkitRoot) 'data\manager.json'
 
 function Get-HomePrefs {
-    $p = @{ View = 'list'; Collapsed = @{} }
+    $p = @{ View = 'list'; Collapsed = @{}; Order = @() }
     if (Test-Path $PrefsFile) {
         try {
             $j = Get-Content $PrefsFile -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($j.View -in 'list', 'grid') { $p.View = $j.View }
             if ($j.Collapsed) { foreach ($c in $j.Collapsed.PSObject.Properties) { $p.Collapsed[$c.Name] = [bool]$c.Value } }
+            if ($j.Order) { $p.Order = @($j.Order | ForEach-Object { [string]$_ }) }
         } catch {}
     }
     $p
@@ -427,6 +429,34 @@ function Save-HomePrefs {
 }
 
 $script:prefs = Get-HomePrefs
+
+# Orden de las herramientas: el guardado por el usuario; las que no estén en él (o todas, si no hay
+# orden guardado) van detrás por orden alfabético del nombre visible
+function Update-ToolOrder {
+    $order = @($script:prefs.Order)
+    $script:tools = @($script:tools | Sort-Object @{ Expression = { $i = [array]::IndexOf($order, $_.id); if ($i -ge 0) { $i } else { [int]::MaxValue } } }, name)
+}
+
+function Move-Tool([string]$Id, [int]$Delta) {
+    $ids = @($script:tools | ForEach-Object id)
+    $i = [array]::IndexOf($ids, $Id)
+    $j = $i + $Delta
+    if ($i -lt 0 -or $j -lt 0 -or $j -ge $ids.Count) { return }
+    $ids[$i], $ids[$j] = $ids[$j], $ids[$i]
+    $script:prefs.Order = $ids
+    Save-HomePrefs
+    Update-ToolOrder
+    Show-OrderPage
+}
+
+function Reset-ToolOrder {
+    $script:prefs.Order = @()
+    Save-HomePrefs
+    Update-ToolOrder
+    Show-OrderPage
+}
+
+Update-ToolOrder
 
 function Switch-HomeView {
     $script:prefs.View = if ($script:prefs.View -eq 'grid') { 'list' } else { 'grid' }
@@ -765,12 +795,72 @@ function Show-LogPage([string]$Id) {
     $ui.Scroll.ScrollToTop()
 }
 
+function Show-OrderPage {
+    $script:page = 'order'
+    $script:PageSignature = $null
+    $panel = New-Ui '<StackPanel/>'
+    $hint = New-Hint 'Usa las flechas para cambiar la posición de cada herramienta en la portada.'
+    $hint.Margin = '4,4,0,12'
+    [void]$panel.Children.Add($hint)
+    for ($i = 0; $i -lt $tools.Count; $i++) {
+        $t = $tools[$i]
+        $row = New-Ui @'
+<Border Style="{StaticResource Card}" Padding="14,6,6,6">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+    </Grid.ColumnDefinitions>
+    <TextBlock x:Name="Icon" Style="{StaticResource ToolIcon}"/>
+    <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+      <TextBlock x:Name="Name" Style="{StaticResource Body}"/>
+      <TextBlock x:Name="State" Style="{StaticResource Caption}"/>
+    </StackPanel>
+    <Button x:Name="Up" Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xE70E;" FontSize="12"/>
+    <Button x:Name="Down" Grid.Column="3" Style="{StaticResource IconButton}" Content="&#xE70D;" FontSize="12"/>
+  </Grid>
+</Border>
+'@
+        $row.FindName('Icon').Text = ConvertTo-Glyph $t.icon
+        $row.FindName('Name').Text = $t.name
+        $row.FindName('State').Text = if ((Get-ToolState $t) -eq 'NotInstalled') { 'No instalada' } else { 'Instalada' }
+        foreach ($b in @(@('Up', -1, 'Subir'), @('Down', 1, 'Bajar'))) {
+            $btn = $row.FindName($b[0])
+            $btn.Tag = @($t.id, $b[1])
+            $btn.IsEnabled = ($b[1] -lt 0 -and $i -gt 0) -or ($b[1] -gt 0 -and $i -lt $tools.Count - 1)
+            [Windows.Automation.AutomationProperties]::SetName($btn, "$($b[2]) $($t.name)")
+            $btn.Add_Click({ param($s, $e) Invoke-Safe { Move-Tool $s.Tag[0] $s.Tag[1] } })
+        }
+        [void]$panel.Children.Add($row)
+    }
+    $reset = New-Ui '<Button Style="{StaticResource SubtleButton}" Content="Restablecer orden alfabético" HorizontalAlignment="Left" Margin="0,8,0,0"/>'
+    $reset.IsEnabled = @($script:prefs.Order).Count -gt 0
+    $reset.Add_Click({ Invoke-Safe { Reset-ToolOrder } })
+    [void]$panel.Children.Add($reset)
+    Set-Page $panel 'Orden de las herramientas' $true
+}
+
 function Show-SettingsPage {
     $script:page = 'settings'
     $script:PageSignature = $null
     $panel = New-Ui '<StackPanel/>'
     [void]$panel.Children.Add((New-SectionHeader 'General'))
     [void]$panel.Children.Add((New-ToggleRow 'Iniciar con Windows' 'Inicia PC Toolkit en la bandeja del sistema al iniciar sesión.' (Test-ManagerAutostart) { param($a, $on) Set-ManagerAutostart $on } $null))
+
+    [void]$panel.Children.Add((New-SectionHeader 'Portada'))
+    $orderRow = New-Ui @'
+<Button Style="{StaticResource CardButton}" AutomationProperties.Name="Orden de las herramientas">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel VerticalAlignment="Center">
+      <TextBlock Style="{StaticResource Body}" Text="Orden de las herramientas"/>
+      <TextBlock Style="{StaticResource Caption}" Text="Elige en qué orden aparecen en la portada."/>
+    </StackPanel>
+    <TextBlock Grid.Column="1" Style="{StaticResource Icon}" Text="&#xE76C;" FontSize="12" Foreground="{StaticResource SubBrush}"/>
+  </Grid>
+</Button>
+'@
+    $orderRow.Add_Click({ Show-OrderPage })
+    [void]$panel.Children.Add($orderRow)
 
     [void]$panel.Children.Add((New-SectionHeader 'Actualizaciones'))
     $card = New-Ui @'
@@ -835,7 +925,11 @@ function Invoke-UpdateCheck {
     } catch { $d.Text = 'No se pudo comprobar (¿sin conexión?).' }
 }
 
-$ui.BackButton.Add_Click({ if ($script:page -like 'log:*') { Show-ToolPage ($script:page.Substring(4)) } else { Show-Home } })
+$ui.BackButton.Add_Click({
+    if ($script:page -like 'log:*') { Show-ToolPage ($script:page.Substring(4)) }
+    elseif ($script:page -eq 'order') { Show-SettingsPage }
+    else { Show-Home }
+})
 $ui.ViewButton.Add_Click({ Switch-HomeView })
 $ui.SettingsButton.Add_Click({ if ($script:page -eq 'settings') { Show-Home } else { Show-SettingsPage } })
 
