@@ -10,12 +10,13 @@ $script:KeyboardSounds = [ordered]@{
     quack = 'Pato'
     frog  = 'Rana'
     miau1 = 'Maullido'
-    moan  = 'Gemido'
+    ahh   = 'Ahh'
 }
 
 function script:Get-KeyboardSoundConfig {
     $path = Join-Path $script:KeyboardSoundData 'config.json'
     $c = if (Test-Path $path) { try { Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json } catch {} }
+    if ($c.Sound -eq 'moan') { $c.Sound = 'ahh' }   # el sonido 'Gemido' de la v1.8.0 se llama ahora 'Ahh'
     @{
         Sound            = if ($script:KeyboardSounds.Contains([string]$c.Sound)) { [string]$c.Sound } else { 'quack' }
         Volume           = if ($null -ne $c.Volume) { [Math]::Max(0, [Math]::Min(100, [int]$c.Volume)) } else { 60 }

@@ -100,7 +100,7 @@ En su página de ajustes:
 > los laterales (queda vacía), por eso ahí solo se ofrece abajo y arriba.
 ### Keyboard Sound
 
-- **Sonido**: pato, rana, maullido o gemido; al elegirlo se reproduce una muestra.
+- **Sonido**: pato, rana, maullido o "ahh"; al elegirlo se reproduce una muestra.
 - **Volumen**: el de los sonidos, sin cambiar el del sistema.
 - **Probar**: campo para escribir y escuchar el sonido y el volumen elegidos.
 - **Iniciar con Windows**: si está desactivado, solo suena mientras la herramienta esté activada.
