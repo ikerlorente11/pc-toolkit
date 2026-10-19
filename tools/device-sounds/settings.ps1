@@ -70,6 +70,47 @@ $panel = New-Ui '<StackPanel/>'
 [void]$panel.Children.Add((New-SectionHeader 'Al desconectar un dispositivo'))
 [void]$panel.Children.Add((New-DeviceSoundSelector 'Disconnect' $cfg.Disconnect))
 
+# Volumen: Windows no tiene uno propio para estos sonidos, así que se aplica a una copia del sonido
+[void]$panel.Children.Add((New-SectionHeader 'Volumen' 'Ajusta el volumen de estos sonidos sin cambiar el de otros sonidos del sistema.'))
+$vol = New-Ui @'
+<Border Style="{StaticResource Card}">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBlock Style="{StaticResource Icon}" Text="&#xE993;" Foreground="{StaticResource SubBrush}"/>
+    <Slider x:Name="Volume" Grid.Column="1" Style="{StaticResource Slider}" Minimum="0" Maximum="100" Margin="12,0"
+            SmallChange="1" LargeChange="10" AutomationProperties.Name="Volumen de los sonidos de dispositivos"/>
+    <TextBlock x:Name="Value" Grid.Column="2" Style="{StaticResource Body}" Width="40" TextAlignment="Right" VerticalAlignment="Center"/>
+  </Grid>
+</Border>
+'@
+$slider = $vol.FindName('Volume')
+$slider.Value = $cfg.Volume
+$slider.Tag = $vol.FindName('Value')
+$slider.Tag.Text = "$($cfg.Volume) %"
+# Se guarda (y suena la muestra) 0,4 s después del último cambio, no en cada paso del arrastre
+if (-not $script:DsVolumeTimer) {
+    $script:DsVolumeTimer = New-Object Windows.Threading.DispatcherTimer
+    $script:DsVolumeTimer.Interval = [TimeSpan]::FromMilliseconds(400)
+    $script:DsVolumeTimer.Add_Tick({
+        $script:DsVolumeTimer.Stop()
+        Invoke-Safe {
+            $c = Get-DeviceSoundsConfig
+            $c.Volume = $script:DsPendingVolume
+            Save-DeviceSoundsConfig $c
+            $tool = $tools | Where-Object id -eq 'device-sounds'
+            if ((Get-ToolState $tool) -eq 'Enabled') { Invoke-DeviceSounds }
+            Invoke-DeviceSoundPreview (Get-DeviceSoundPath $c.Connect 'DeviceConnect')
+        }
+    })
+}
+$slider.Add_ValueChanged({
+    param($s, $e)
+    $s.Tag.Text = "$([int]$s.Value) %"
+    $script:DsPendingVolume = [int]$s.Value
+    $script:DsVolumeTimer.Stop(); $script:DsVolumeTimer.Start()
+})
+[void]$panel.Children.Add($vol)
+
 # Probar: reproduce lo que Windows tiene configurado ahora, como al conectar o desconectar algo de verdad
 [void]$panel.Children.Add((New-SectionHeader 'Probar' 'Reproduce los sonidos que Windows usa ahora mismo.'))
 $test = New-Ui @'

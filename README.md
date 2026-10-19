@@ -110,6 +110,8 @@ En su página de ajustes:
 
 - Un sonido para **conectar** y otro para **desconectar**, elegidos de la biblioteca (o el
   predeterminado de Windows, o sin sonido); al elegirlo suena una muestra.
+- **Volumen** propio para estos sonidos (se aplica a una copia del sonido, sin tocar el volumen
+  del resto de sonidos del sistema).
 - **Probar** reproduce los sonidos que Windows tiene configurados en ese momento.
 - No hay proceso en segundo plano: cambia los sonidos del sistema de tu usuario y los
   vuelve a aplicar al iniciar sesión. Al desactivarla o desinstalarla vuelven los de Windows.

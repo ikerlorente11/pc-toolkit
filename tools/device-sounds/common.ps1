@@ -2,6 +2,7 @@
 # Windows "Conectar dispositivo" y "Desconectar dispositivo" (HKCU\AppEvents, sin admin ni procesos).
 # Lo cargan con "." Apply.ps1 (tarea al iniciar sesión), disable.ps1, settings.ps1 y home.ps1.
 
+if (-not ('PcToolkit.DeviceSounds.WavVolume' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'WavVolume.cs') }
 $script:DeviceSoundsDir  = $PSScriptRoot
 $script:DeviceSoundsData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\device-sounds'
 
@@ -38,6 +39,7 @@ function script:Get-DeviceSoundsConfig {
     @{
         Connect    = if (Test-DeviceSoundId $c.Connect) { [string]$c.Connect } else { 'desenvainar-espada' }
         Disconnect = if (Test-DeviceSoundId $c.Disconnect) { [string]$c.Disconnect } else { 'envainar-espada' }
+        Volume     = if ($null -ne $c.Volume) { [Math]::Max(0, [Math]::Min(100, [int]$c.Volume)) } else { 100 }
     }
 }
 
@@ -69,12 +71,22 @@ function script:Set-EventSound([string]$WindowsEvent, [string]$Path) {
     Set-ItemProperty $key '(default)' $Path
 }
 
+# Archivo con el volumen elegido: al 100 % el original; si no, una copia en la carpeta de datos
+# (si el formato no lo permite, también el original)
+function script:Get-DeviceSoundAtVolume([string]$Path, [int]$Volume, [string]$Name) {
+    if (-not $Path -or $Volume -ge 100 -or -not (Test-Path $Path)) { return $Path }
+    New-Item -ItemType Directory -Force -Path $script:DeviceSoundsData | Out-Null
+    $target = Join-Path $script:DeviceSoundsData "$Name.wav"
+    if ([PcToolkit.DeviceSounds.WavVolume]::Scale($Path, $target, $Volume)) { $target } else { $Path }
+}
+
 # Aplica la configuración (Windows lee el registro cada vez que reproduce el sonido: efecto inmediato)
 function script:Invoke-DeviceSounds {
     $cfg = Get-DeviceSoundsConfig
     foreach ($name in $script:DeviceSoundEvents.Keys) {
         $ev = $script:DeviceSoundEvents[$name]
-        Set-EventSound $ev (Get-DeviceSoundPath $cfg[$name] $ev)
+        $path = Get-DeviceSoundPath $cfg[$name] $ev
+        Set-EventSound $ev (Get-DeviceSoundAtVolume $path $cfg.Volume $name.ToLower())
     }
 }
 
@@ -83,7 +95,12 @@ function script:Restore-DeviceSounds {
     foreach ($ev in $script:DeviceSoundEvents.Values) { Set-EventSound $ev (Get-WindowsDeviceSound $ev) }
 }
 
-# Reproduce un archivo WAV (muestra en el gestor)
+# Reproduce un archivo WAV con el volumen elegido (muestra en el gestor)
 function script:Invoke-DeviceSoundPreview([string]$Path) {
-    if ($Path -and (Test-Path $Path)) { (New-Object System.Media.SoundPlayer $Path).Play() }
+    $path = Get-DeviceSoundAtVolume $Path (Get-DeviceSoundsConfig).Volume 'muestra'
+    if ($path -and (Test-Path $path)) {
+        $player = New-Object System.Media.SoundPlayer $path
+        $player.Load()   # en memoria: la muestra siguiente puede sobrescribir el archivo
+        $player.Play()
+    }
 }
