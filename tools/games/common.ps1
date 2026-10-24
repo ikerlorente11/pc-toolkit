@@ -48,23 +48,45 @@ function script:Get-RunningGame($Games, [switch]$Hdr) {
 
 function script:Get-HdrDisplays { @([PcToolkit.Hdr.Native]::List() | Where-Object Supported) }
 
-# Quita el HDR a las pantallas que lo tengan y apunta cuáles eran para devolvérselo luego
-function script:Disable-HdrForGame {
-    $on = @(Get-HdrDisplays | Where-Object Enabled)
-    foreach ($d in $on) { [void][PcToolkit.Hdr.Native]::Set($d, $false) }
-    New-Item -ItemType Directory -Force -Path $script:GamesData | Out-Null
-    ConvertTo-Json @($on | ForEach-Object Key) | Set-Content $script:HdrRestoreFile -Encoding UTF8
-    $on
+# Pantallas a las que el vigilante quitó el HDR (claves de Display) y que hay que devolver
+function script:Get-HdrOffKeys {
+    if (-not (Test-Path $script:HdrRestoreFile)) { return @() }
+    # En PowerShell 5.1 ConvertFrom-Json devuelve la lista como un solo objeto: hay que desplegarla
+    @(try { (Get-Content $script:HdrRestoreFile -Raw -Encoding UTF8 | ConvertFrom-Json) | ForEach-Object { "$_" } } catch {})
 }
 
-# Devuelve el HDR a las pantallas apuntadas (si siguen conectadas)
+function script:Save-HdrOffKeys($Keys) {
+    if (-not $Keys) { Remove-Item $script:HdrRestoreFile -Force -ErrorAction SilentlyContinue; return }
+    New-Item -ItemType Directory -Force -Path $script:GamesData | Out-Null
+    ConvertTo-Json @($Keys) | Set-Content $script:HdrRestoreFile -Encoding UTF8
+}
+
+# Pantallas (Screen.DeviceName -> juego) en las que hay abierto un juego que apaga el HDR: la elegida
+# si va sin bordes y, si no, en la que esté su ventana (hasta que tenga ventana no cuenta)
+function script:Get-HdrGameScreens($Games) {
+    $screens = @{}
+    foreach ($g in ($Games | Where-Object Hdr)) {
+        $procs = [Diagnostics.Process]::GetProcessesByName([IO.Path]::GetFileNameWithoutExtension($g.Exe))
+        foreach ($p in $procs) {
+            if ($g.Borderless) { $screens[(Get-GameScreen $g.Screen).DeviceName] = $g }
+            else {
+                foreach ($hwnd in [PcToolkit.GameWindows.Native]::GetWindows($p.Id)) {
+                    $screens[[Windows.Forms.Screen]::FromHandle($hwnd).DeviceName] = $g
+                }
+            }
+            $p.Dispose()
+        }
+    }
+    $screens
+}
+
+# Devuelve el HDR a todas las pantallas a las que se les quitó (al desactivar la herramienta)
 function script:Restore-Hdr {
-    if (-not (Test-Path $script:HdrRestoreFile)) { return }
-    # En PowerShell 5.1 ConvertFrom-Json devuelve la lista como un solo objeto: hay que desplegarla
-    $keys = @(try { (Get-Content $script:HdrRestoreFile -Raw -Encoding UTF8 | ConvertFrom-Json) | ForEach-Object { "$_" } } catch {})
+    $keys = Get-HdrOffKeys
+    if (-not $keys) { return }
     $back = @(Get-HdrDisplays | Where-Object { $keys -contains $_.Key -and -not $_.Enabled })
     foreach ($d in $back) { [void][PcToolkit.Hdr.Native]::Set($d, $true) }
-    Remove-Item $script:HdrRestoreFile -Force
+    Save-HdrOffKeys @()
     $back
 }
 

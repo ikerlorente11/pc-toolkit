@@ -3,7 +3,7 @@
   "name": "Juegos",
   "icon": "E7FC",
   "summary": "HDR y ventana de cada juego",
-  "description": "Ajustes que se aplican solos al abrir cada juego de la lista: desactivar el HDR de Windows mientras está abierto (los juegos sin HDR se ven lavados con él activado) y ponerlo en ventana sin bordes ocupando justo la pantalla elegida, que se ve como en pantalla completa pero sin minimizarse al pasar a otra pantalla.",
+  "description": "Ajustes que se aplican solos al abrir cada juego de la lista: desactivar el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él activado) y ponerlo en ventana sin bordes ocupando justo la pantalla elegida, que se ve como en pantalla completa pero sin minimizarse al pasar a otra pantalla.",
   "task": "PcToolkitGames",
   "process": "Games\\.ps1",
   "log": "Games.log"

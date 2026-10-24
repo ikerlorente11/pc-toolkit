@@ -1,5 +1,5 @@
 ﻿# Games.ps1 - Vigilante de Juegos. Cada segundo, para los juegos de la lista que estén abiertos:
-#   - HDR: al abrirse uno que lo apaga se quita el HDR, y al cerrarse se devuelve.
+#   - HDR: se quita en la pantalla del juego mientras está abierto, y luego se devuelve.
 #   - Ventana sin bordes: si su ventana no está sin bordes ocupando su pantalla, se coloca (también si
 #     el juego vuelve a poner el borde al cambiar de resolución...).
 # Lo lanza oculto la tarea "PcToolkitGames". Los cambios hechos desde el gestor se aplican solos.
@@ -19,20 +19,28 @@ function Write-Log($msg) {
     } catch {}
 }
 
-function Get-Names($displays) { (@($displays) | ForEach-Object Name) -join ', ' }
-
+# HDR apagado solo en las pantallas donde hay un juego que lo pide; en cuanto el juego se cierra o
+# cambia de pantalla, se devuelve. Si estaba apagado de antes, no se toca (ni se enciende luego).
 function Update-Hdr($games) {
-    $game = Get-RunningGame $games -Hdr
-    if ($game -and -not $script:hdrOff) {
-        $off = Disable-HdrForGame
-        if ($off) { Write-Log "$($game.Name) abierto: HDR desactivado en $(Get-Names $off)" }
-        else { Write-Log "$($game.Name) abierto: el HDR ya estaba desactivado" }
-        $script:hdrOff = $true
-    } elseif (-not $game -and $script:hdrOff) {
-        $back = Restore-Hdr
-        if ($back) { Write-Log "Juego cerrado: HDR activado en $(Get-Names $back)" }
-        $script:hdrOff = $false
+    $wanted = Get-HdrGameScreens $games
+    $before = @(Get-HdrOffKeys)
+    $off = $before
+    $displays = Get-HdrDisplays
+    foreach ($d in $displays) {
+        $game = if ($d.GdiName) { $wanted[$d.GdiName] }
+        if ($game -and $d.Enabled -and $off -notcontains $d.Key) {
+            [void][PcToolkit.Hdr.Native]::Set($d, $false)
+            $off += $d.Key
+            Write-Log "$($game.Name) abierto: HDR desactivado en $($d.Name) ($(Get-ScreenLabel (Get-GameScreen $d.GdiName)))"
+        } elseif (-not $game -and $off -contains $d.Key) {
+            if (-not $d.Enabled) { [void][PcToolkit.Hdr.Native]::Set($d, $true) }
+            $off = @($off | Where-Object { $_ -ne $d.Key })
+            Write-Log "HDR activado de nuevo en $($d.Name) ($(Get-ScreenLabel (Get-GameScreen $d.GdiName)))"
+        }
     }
+    # Las pantallas desconectadas se olvidan
+    $off = @($off | Where-Object { $displays.Key -contains $_ })
+    if (($off -join ',') -ne ($before -join ',')) { Save-HdrOffKeys $off }
 }
 
 $logged = @{}   # ventana -> ya se apuntó en el registro (para no repetirlo en cada corrección)
@@ -56,8 +64,6 @@ function Update-Windows($games) {
 }
 
 Write-Log 'Vigilante iniciado'
-# Si quedó HDR por devolver (reinicio con un juego abierto...), se recupera en la primera vuelta
-$script:hdrOff = Test-Path $script:HdrRestoreFile
 while ($true) {
     try {
         $games = (Get-GamesConfig).Games

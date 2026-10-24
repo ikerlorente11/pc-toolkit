@@ -15,7 +15,7 @@ aparte de PowerShell, que ya viene con Windows.
 |---|---|
 | **Audio AutoSwitch** | Cambia la salida de audio al conectar un dispositivo (auriculares Bluetooth, USB...) y vuelve al anterior disponible al desconectarlo. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
 | **Barra de tareas** | Configura posición, ocultación automática, alineación y tamaño de los iconos, búsqueda y pantallas de la barra de tareas, con un perfil independiente para Escritorio remoto. Botón y atajo (**Ctrl + Alt + B**) para restablecerla cuando la ocultación automática deja de responder. |
-| **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de Windows mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
+| **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
 
@@ -108,8 +108,9 @@ En su página de ajustes:
 - **Juegos**: lista de ejecutables (por defecto, The Binding of Isaac: `isaac-ng.exe`). Para añadir
   uno, ábrelo y elígelo en **Elegir un programa abierto**, o escribe el nombre de su `.exe`.
 - Cada juego tiene dos opciones:
-  - **Desactivar el HDR mientras está abierto**: al abrirse se apaga el HDR de las pantallas que lo
-    tengan y al cerrarse se vuelve a encender solo en esas (también al desactivar la herramienta).
+  - **Desactivar el HDR mientras está abierto**: se apaga solo en la pantalla del juego (la elegida
+    para la ventana sin bordes o, si no, en la que esté su ventana) y se vuelve a encender al cerrarlo
+    (también al desactivar la herramienta). Si ya estaba apagado, no se toca.
   - **Ventana sin bordes a pantalla completa**: con el juego en modo ventana, le quita los bordes y
     lo coloca ocupando la **pantalla** elegida. Si el juego vuelve a poner el borde o se mueve, se
     corrige solo en un segundo.

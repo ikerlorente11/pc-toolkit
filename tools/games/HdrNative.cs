@@ -11,6 +11,7 @@ namespace PcToolkit.Hdr {
         public int AdapterHigh;
         public uint TargetId;
         public string Name;
+        public string GdiName;   // nombre de Windows de la pantalla (\\.\DISPLAY1), como Screen.DeviceName
         public bool Supported;
         public bool Enabled;
         public string Key { get { return TargetId.ToString(); } }
@@ -50,15 +51,19 @@ namespace PcToolkit.Hdr {
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DevicePath;
         }
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct SourceName { public Header H; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string GdiName; }
+
         [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint paths, out uint modes);
         [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint paths, [Out] PathInfo[] pathArray, ref uint modes, [Out] ModeInfo[] modeArray, IntPtr topology);
         [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref ColorInfo info);
         [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref ColorInfo2 info);
         [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref TargetName info);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref SourceName info);
         [DllImport("user32.dll")] static extern int DisplayConfigSetDeviceInfo(ref SetState info);
 
         const uint QDC_ONLY_ACTIVE_PATHS = 2;
-        const int GET_TARGET_NAME = 2, GET_ADVANCED_COLOR_INFO = 9, SET_ADVANCED_COLOR_STATE = 10,
+        const int GET_SOURCE_NAME = 1, GET_TARGET_NAME = 2, GET_ADVANCED_COLOR_INFO = 9, SET_ADVANCED_COLOR_STATE = 10,
                   GET_ADVANCED_COLOR_INFO_2 = 15, SET_HDR_STATE = 16;
 
         static bool? newApi;
@@ -106,6 +111,12 @@ namespace PcToolkit.Hdr {
             return "Pantalla " + id;
         }
 
+        static string ReadGdiName(LUID adapter, uint sourceId) {
+            SourceName s = new SourceName();
+            s.H = MakeHeader(GET_SOURCE_NAME, Marshal.SizeOf(typeof(SourceName)), adapter, sourceId);
+            return DisplayConfigGetDeviceInfo(ref s) == 0 ? s.GdiName : null;
+        }
+
         // Pantallas activas (una por salida, aunque estén duplicadas)
         public static Display[] List() {
             List<Display> list = new List<Display>();
@@ -118,6 +129,7 @@ namespace PcToolkit.Hdr {
                 Display d = new Display();
                 d.AdapterLow = p.TargetAdapter.Low; d.AdapterHigh = p.TargetAdapter.High; d.TargetId = p.TargetId;
                 d.Name = ReadName(p.TargetAdapter, p.TargetId);
+                d.GdiName = ReadGdiName(p.SourceAdapter, p.SourceId);
                 d.Supported = supported; d.Enabled = enabled;
                 list.Add(d);
             }
