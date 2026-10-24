@@ -91,7 +91,7 @@ $hdrGame = Get-RunningGame $cfg.Games -Hdr
 $panel   = New-Ui '<StackPanel/>'
 
 # 1. Juegos de la lista y sus opciones
-[void]$panel.Children.Add((New-SectionHeader 'Juegos' 'Se aplica solo al abrir cada juego. Para la ventana sin bordes, ponlo en modo ventana dentro del juego. Para cambiarla de pantalla, Win + Mayús + flecha.'))
+[void]$panel.Children.Add((New-SectionHeader 'Juegos' 'Se aplica solo al abrir cada juego. Para la ventana sin bordes, ponlo en modo ventana dentro del juego. Para cambiarla de pantalla, usa el atajo de teclado (abajo) o Win + Mayús + flecha.'))
 if (-not $cfg.Games) { [void]$panel.Children.Add((New-Hint 'No hay ningún juego en la lista.')) }
 foreach ($g in $cfg.Games) {
     $card = New-Ui @'
