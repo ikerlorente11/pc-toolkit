@@ -31,8 +31,27 @@ namespace PcToolkit.GameWindows {
         const uint GW_OWNER = 4;
         const uint SWP_NOZORDER = 0x4, SWP_NOOWNERZORDER = 0x200, SWP_FRAMECHANGED = 0x20, SWP_NOACTIVATE = 0x10;
 
+        [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
+        [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT p);
+
         // Coordenadas reales de las pantallas aunque Windows tenga escalado
         public static void Init() { SetProcessDPIAware(); }
+
+        public static int[] GetCursor() {
+            POINT p;
+            return GetCursorPos(out p) ? new int[] { p.X, p.Y } : null;
+        }
+
+        // Ventana flotante que no roba el foco al juego ni sale en Alt+Tab
+        public static void SetNoActivate(IntPtr hwnd) {
+            long ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex | 0x08000000 /* NOACTIVATE */ | 0x80 /* TOOLWINDOW */));
+        }
+
+        // Mueve una ventana (en píxeles reales) sin cambiar su tamaño ni activarla
+        public static void MoveTo(IntPtr hwnd, int x, int y) {
+            SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, 0x1 /* NOSIZE */ | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
 
         // Ventanas principales visibles del proceso (sin dueño y con un tamaño razonable)
         public static IntPtr[] GetWindows(int pid) {

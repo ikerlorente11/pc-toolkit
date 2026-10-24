@@ -113,6 +113,13 @@ function script:Set-GameScreen([string]$Exe, $Screen) {
     Save-GamesConfig $cfg
 }
 
+# Pantalla siguiente (+1) o anterior (-1) de izquierda a derecha, dando la vuelta
+function script:Get-NextScreen($Screen, [int]$Delta = 1) {
+    $screens = @([Windows.Forms.Screen]::AllScreens | Sort-Object { $_.Bounds.X })
+    $i = [array]::IndexOf(@($screens | ForEach-Object DeviceName), $Screen.DeviceName)
+    $screens[($i + $Delta + $screens.Count) % $screens.Count]
+}
+
 # Texto para el panel: "Principal · 2560 × 1440" o "A la derecha · 2560 × 1440"
 function script:Get-ScreenLabel($Screen) {
     $p = [Windows.Forms.Screen]::PrimaryScreen.Bounds

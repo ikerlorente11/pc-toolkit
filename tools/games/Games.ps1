@@ -2,6 +2,7 @@
 #   - HDR: se quita en la pantalla del juego mientras está abierto, y luego se devuelve.
 #   - Ventana sin bordes: si su ventana no está sin bordes ocupando su pantalla, se coloca (también si
 #     el juego vuelve a poner el borde al cambiar de resolución...).
+#   - Barra flotante (GameBar.ps1) al dejar el ratón arriba del todo en la pantalla del juego.
 # Lo lanza oculto la tarea "PcToolkitGames". Los cambios hechos desde el gestor se aplican solos.
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -45,7 +46,9 @@ function Update-Hdr($games) {
 
 $logged   = @{}   # ventana -> ya se apuntó en el registro (para no repetirlo en cada corrección)
 $placedOn = @{}   # ventana -> pantalla en la que se colocó la última vez
+$script:GameScreens = @()   # juegos sin bordes abiertos ahora: @{ Game; Screen } (para la barra)
 function Update-Windows($games) {
+    $script:GameScreens = @()
     foreach ($g in ($games | Where-Object Borderless)) {
         $procs = [Diagnostics.Process]::GetProcessesByName([IO.Path]::GetFileNameWithoutExtension($g.Exe))
         foreach ($p in $procs) {
@@ -65,6 +68,7 @@ function Update-Windows($games) {
                 }
                 $x, $y, $w, $h = Get-GameRect $g $screen
                 $placedOn[$key] = $screen.DeviceName
+                $script:GameScreens += @{ Game = $g; Screen = $screen }
                 if ([PcToolkit.GameWindows.Native]::IsPlaced($hwnd, $x, $y, $w, $h)) { continue }
                 [void][PcToolkit.GameWindows.Native]::Place($hwnd, $x, $y, $w, $h)
                 if (-not $logged.ContainsKey($key)) {
@@ -77,12 +81,24 @@ function Update-Windows($games) {
     }
 }
 
-Write-Log 'Vigilante iniciado'
-while ($true) {
+function Update-All {
     try {
         $games = (Get-GamesConfig).Games
         Update-Hdr $games
         Update-Windows $games
     } catch { Write-Log "ERROR: $($_.Exception.Message)" }
-    Start-Sleep -Seconds 1
 }
+
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+$app = New-Object Windows.Application
+$app.ShutdownMode = 'OnExplicitShutdown'
+. (Join-Path $PSScriptRoot 'GameBar.ps1')
+
+Write-Log 'Vigilante iniciado'
+# Bucle de mensajes de WPF (lo necesita la barra): repaso completo cada segundo y ratón cada 100 ms
+$timer = New-Object Windows.Threading.DispatcherTimer
+$timer.Interval = [TimeSpan]::FromSeconds(1)
+$timer.Add_Tick({ Update-All })
+$timer.Start()
+Update-All
+[void]$app.Run()

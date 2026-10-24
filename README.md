@@ -113,8 +113,10 @@ En su página de ajustes:
     (también al desactivar la herramienta). Si ya estaba apagado, no se toca.
   - **Ventana sin bordes a pantalla completa**: con el juego en modo ventana, le quita los bordes y
     lo coloca ocupando la **pantalla** elegida. Si el juego vuelve a poner el borde, se corrige solo
-    en un segundo. Para cambiarlo de pantalla: **Ctrl + Alt + P** (pasa el juego abierto a la
-    siguiente), **Win + Mayús + ← / →** o el selector de su tarjeta; se recuerda para la próxima vez.
+    en un segundo. Para cambiarlo de pantalla: deja el ratón **arriba del todo** en su pantalla y
+    sale una barra con **◀ ▶** (como la barra de tareas al bajarlo), o **Ctrl + Alt + P** (pasa el juego
+    abierto a la siguiente), **Win + Mayús + ← / →** o el selector de su tarjeta; se recuerda para la
+    próxima vez.
   - **Mostrar la barra de tareas al bajar el ratón**: deja 1 píxel libre abajo. Si la ventana ocupa la
     pantalla entera, Windows la trata como pantalla completa y no saca la barra oculta encima.
 - **HDR ahora**: interruptor por pantalla para cambiarlo a mano (como **Win + Alt + B**).

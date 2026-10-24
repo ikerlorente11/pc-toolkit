@@ -7,8 +7,6 @@
 $game = Get-RunningGame @((Get-GamesConfig).Games | Where-Object Borderless)
 if (-not $game) { return 'No hay ningún juego abierto' }
 
-$screens = @([Windows.Forms.Screen]::AllScreens | Sort-Object { $_.Bounds.X })
-$i = [array]::IndexOf(@($screens | ForEach-Object DeviceName), (Get-GameScreen $game.Screen).DeviceName)
-$next = $screens[($i + 1) % $screens.Count]
+$next = Get-NextScreen (Get-GameScreen $game.Screen)
 Set-GameScreen $game.Exe $next
 "$($game.Name): $(Get-ScreenLabel $next)"
