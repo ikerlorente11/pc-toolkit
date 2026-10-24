@@ -1,0 +1,10 @@
+{
+  "id": "hdr-games",
+  "name": "HDR por juego",
+  "icon": "E7FC",
+  "summary": "Apaga el HDR en juegos",
+  "description": "Desactiva el HDR de Windows mientras está abierto alguno de los juegos de la lista (los juegos sin HDR se ven lavados con él activado) y lo vuelve a activar al cerrarlo. El resto del tiempo Windows sigue en HDR.",
+  "task": "PcToolkitHdrGames",
+  "process": "HdrGames\\.ps1",
+  "log": "HdrGames.log"
+}

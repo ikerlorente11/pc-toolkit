@@ -15,6 +15,7 @@ aparte de PowerShell, que ya viene con Windows.
 |---|---|
 | **Audio AutoSwitch** | Cambia la salida de audio al conectar un dispositivo (auriculares Bluetooth, USB...) y vuelve al anterior disponible al desconectarlo. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
 | **Barra de tareas** | Configura posición, ocultación automática, alineación y tamaño de los iconos, búsqueda y pantallas de la barra de tareas, con un perfil independiente para Escritorio remoto. Botón y atajo (**Ctrl + Alt + B**) para restablecerla cuando la ocultación automática deja de responder. |
+| **HDR por juego** | Desactiva el HDR de Windows mientras está abierto alguno de los juegos de la lista (los juegos sin HDR se ven lavados con él activado) y lo vuelve a activar al cerrarlo. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
 
@@ -101,6 +102,15 @@ En su página de ajustes:
 
 > Cambiar la posición reinicia el Explorador de Windows. Windows 11 no admite la barra en
 > los laterales (queda vacía), por eso ahí solo se ofrece abajo y arriba.
+
+### HDR por juego
+
+- **Juegos**: lista de ejecutables (por defecto, The Binding of Isaac: `isaac-ng.exe`). Para añadir
+  uno, ábrelo y elígelo en **Elegir un programa abierto**, o escribe el nombre de su `.exe`.
+- Al abrirse un juego de la lista se apaga el HDR de las pantallas que lo tengan; al cerrarse se
+  vuelve a encender solo en esas. Si desactivas la herramienta con un juego abierto, también se devuelve.
+- **HDR ahora**: interruptor por pantalla para cambiarlo a mano (como **Win + Alt + B**).
+
 ### Keyboard Sound
 
 - **Sonido**: pato, rana, maullido, "ahh" o "yiahhh"; al elegirlo se reproduce una muestra.
