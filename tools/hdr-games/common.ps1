@@ -45,7 +45,8 @@ function script:Disable-HdrForGame {
 # Devuelve el HDR a las pantallas apuntadas (si siguen conectadas)
 function script:Restore-Hdr {
     if (-not (Test-Path $script:HdrRestoreFile)) { return }
-    $keys = @(try { Get-Content $script:HdrRestoreFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch {})
+    # En PowerShell 5.1 ConvertFrom-Json devuelve la lista como un solo objeto: hay que desplegarla
+    $keys = @(try { (Get-Content $script:HdrRestoreFile -Raw -Encoding UTF8 | ConvertFrom-Json) | ForEach-Object { "$_" } } catch {})
     $back = @(Get-HdrDisplays | Where-Object { $keys -contains $_.Key -and -not $_.Enabled })
     foreach ($d in $back) { [void][PcToolkit.Hdr.Native]::Set($d, $true) }
     Remove-Item $script:HdrRestoreFile -Force
