@@ -57,6 +57,14 @@ namespace PcToolkit.GameWindows {
             return (style & FRAME) == 0 && r.Left == x && r.Top == y && r.Right - r.Left == w && r.Bottom - r.Top == h;
         }
 
+        // Rectángulo de la ventana si está sin bordes y sin minimizar (x, y, ancho, alto); si no, null
+        public static int[] GetBorderlessRect(IntPtr hwnd) {
+            RECT r;
+            if (IsIconic(hwnd) || !GetWindowRect(hwnd, out r)) return null;
+            if ((GetWindowLongPtr(hwnd, GWL_STYLE).ToInt64() & FRAME) != 0) return null;
+            return new int[] { r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top };
+        }
+
         public static bool Place(IntPtr hwnd, int x, int y, int w, int h) {
             if (IsZoomed(hwnd)) ShowWindow(hwnd, 9);   // SW_RESTORE: maximizada no se puede mover
             long style = GetWindowLongPtr(hwnd, GWL_STYLE).ToInt64();

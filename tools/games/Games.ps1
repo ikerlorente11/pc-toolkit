@@ -43,19 +43,33 @@ function Update-Hdr($games) {
     if (($off -join ',') -ne ($before -join ',')) { Save-HdrOffKeys $off }
 }
 
-$logged = @{}   # ventana -> ya se apuntó en el registro (para no repetirlo en cada corrección)
+$logged   = @{}   # ventana -> ya se apuntó en el registro (para no repetirlo en cada corrección)
+$placedOn = @{}   # ventana -> pantalla en la que se colocó la última vez
 function Update-Windows($games) {
     foreach ($g in ($games | Where-Object Borderless)) {
         $procs = [Diagnostics.Process]::GetProcessesByName([IO.Path]::GetFileNameWithoutExtension($g.Exe))
         foreach ($p in $procs) {
             foreach ($hwnd in [PcToolkit.GameWindows.Native]::GetWindows($p.Id)) {
+                $key = [string]$hwnd
                 $screen = Get-GameScreen $g.Screen
-                $b = $screen.Bounds
-                if ([PcToolkit.GameWindows.Native]::IsPlaced($hwnd, $b.X, $b.Y, $b.Width, $b.Height)) { continue }
-                [void][PcToolkit.GameWindows.Native]::Place($hwnd, $b.X, $b.Y, $b.Width, $b.Height)
-                if (-not $logged.ContainsKey([string]$hwnd)) {
+                # Si el usuario la ha sacado de donde se colocó (Win + Mayús + flecha), esa pasa a ser su pantalla
+                $r = [PcToolkit.GameWindows.Native]::GetBorderlessRect($hwnd)
+                if ($r -and $placedOn.ContainsKey($key)) {
+                    $center = New-Object Drawing.Point ([int]($r[0] + $r[2] / 2)), ([int]($r[1] + $r[3] / 2))
+                    $now = [Windows.Forms.Screen]::FromPoint($center)
+                    if ($now.DeviceName -ne $placedOn[$key] -and $now.DeviceName -ne $screen.DeviceName) {
+                        Set-GameScreen $g.Exe $now
+                        $screen = $now
+                        Write-Log "$($g.Name): movido a $(Get-ScreenLabel $screen)"
+                    }
+                }
+                $x, $y, $w, $h = Get-GameRect $g $screen
+                $placedOn[$key] = $screen.DeviceName
+                if ([PcToolkit.GameWindows.Native]::IsPlaced($hwnd, $x, $y, $w, $h)) { continue }
+                [void][PcToolkit.GameWindows.Native]::Place($hwnd, $x, $y, $w, $h)
+                if (-not $logged.ContainsKey($key)) {
                     Write-Log "$($g.Name): ventana sin bordes en $(Get-ScreenLabel $screen)"
-                    $logged[[string]$hwnd] = $true
+                    $logged[$key] = $true
                 }
             }
             $p.Dispose()

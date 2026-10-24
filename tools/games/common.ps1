@@ -1,7 +1,7 @@
 ﻿# common.ps1 - Configuración de Juegos, control del HDR y pantallas. Lo cargan con "." el vigilante,
 # install.ps1, disable.ps1, settings.ps1 y home.ps1. Funciones "script:" para que sigan vivas en los botones del gestor.
 
-Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 if (-not ('PcToolkit.Hdr.Native' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'HdrNative.cs') }
 if (-not ('PcToolkit.GameWindows.Native' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'WindowNative.cs') }
 $script:GamesDir  = $PSScriptRoot
@@ -9,13 +9,13 @@ $script:GamesData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\games'
 # Pantallas a las que el vigilante quitó el HDR y que hay que devolver al cerrar el juego
 $script:HdrRestoreFile = Join-Path $script:GamesData 'restore.json'
 
-# Cada juego: Exe, Name, Hdr (desactivar el HDR mientras está abierto), Borderless y Screen
+# Cada juego: Exe, Name, Hdr (desactivar el HDR mientras está abierto), Borderless, Screen y ShowTaskbar
 function script:Get-GamesConfig {
     $path = Join-Path $script:GamesData 'config.json'
     $c = if (Test-Path $path) { try { Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json } catch {} }
     $games = if ($c -and $null -ne $c.Games) { @($c.Games | Where-Object { $_.Exe }) }
              else { @([pscustomobject]@{ Exe = 'isaac-ng.exe'; Name = 'The Binding of Isaac' }) }
-    $defaults = @{ Hdr = $true; Borderless = $true; Screen = 'primary' }
+    $defaults = @{ Hdr = $true; Borderless = $true; Screen = 'primary'; ShowTaskbar = $true }
     foreach ($g in $games) {
         foreach ($k in $defaults.Keys) {
             if ($null -eq $g.$k) { $g | Add-Member -Force -NotePropertyName $k -NotePropertyValue $defaults[$k] }
@@ -96,6 +96,21 @@ function script:Restore-Hdr {
 function script:Get-GameScreen([string]$Screen) {
     $s = [Windows.Forms.Screen]::AllScreens | Where-Object { $_.DeviceName -eq $Screen } | Select-Object -First 1
     if ($s) { $s } else { [Windows.Forms.Screen]::PrimaryScreen }
+}
+
+# Rectángulo de la ventana sin bordes: la pantalla entera o, para que salga la barra de tareas oculta
+# al bajar el ratón, 1 píxel menos de alto (si ocupa toda la pantalla, Windows la trata como pantalla
+# completa y no muestra la barra encima)
+function script:Get-GameRect($Game, $Screen) {
+    $b = $Screen.Bounds
+    $b.X, $b.Y, $b.Width, $(if ($Game.ShowTaskbar) { $b.Height - 1 } else { $b.Height })
+}
+
+# Guarda la pantalla de un juego ('primary' si es la principal)
+function script:Set-GameScreen([string]$Exe, $Screen) {
+    $cfg = Get-GamesConfig
+    foreach ($g in $cfg.Games) { if ($g.Exe -eq $Exe) { $g.Screen = $(if ($Screen.Primary) { 'primary' } else { $Screen.DeviceName }) } }
+    Save-GamesConfig $cfg
 }
 
 # Texto para el panel: "Principal · 2560 × 1440" o "A la derecha · 2560 × 1440"

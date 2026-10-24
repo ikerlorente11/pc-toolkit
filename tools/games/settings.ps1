@@ -18,7 +18,7 @@ function script:Add-Game([string]$Exe, [string]$Name) {
     $cfg = Get-GamesConfig
     if ($cfg.Games | Where-Object { $_.Exe -eq $Exe }) { return }
     if (-not $Name) { $Name = [IO.Path]::GetFileNameWithoutExtension($Exe) }
-    $cfg.Games = @($cfg.Games) + [pscustomobject]@{ Exe = $Exe; Name = $Name; Hdr = $true; Borderless = $true; Screen = 'primary' }
+    $cfg.Games = @($cfg.Games) + [pscustomobject]@{ Exe = $Exe; Name = $Name; Hdr = $true; Borderless = $true; Screen = 'primary'; ShowTaskbar = $true }
     Save-GamesConfig $cfg
     Update-Page
 }
@@ -91,7 +91,7 @@ $hdrGame = Get-RunningGame $cfg.Games -Hdr
 $panel   = New-Ui '<StackPanel/>'
 
 # 1. Juegos de la lista y sus opciones
-[void]$panel.Children.Add((New-SectionHeader 'Juegos' 'Se aplica solo al abrir cada juego. Para la ventana sin bordes, ponlo en modo ventana dentro del juego.'))
+[void]$panel.Children.Add((New-SectionHeader 'Juegos' 'Se aplica solo al abrir cada juego. Para la ventana sin bordes, ponlo en modo ventana dentro del juego. Para cambiarla de pantalla, Win + Mayús + flecha.'))
 if (-not $cfg.Games) { [void]$panel.Children.Add((New-Hint 'No hay ningún juego en la lista.')) }
 foreach ($g in $cfg.Games) {
     $card = New-Ui @'
@@ -122,6 +122,9 @@ foreach ($g in $cfg.Games) {
     $options = $card.FindName('Options')
     [void]$options.Children.Add((New-GameOption 'Desactivar el HDR mientras está abierto' $g.Hdr $g.Exe 'Hdr'))
     [void]$options.Children.Add((New-GameOption 'Ventana sin bordes a pantalla completa' $g.Borderless $g.Exe 'Borderless'))
+    if ($g.Borderless) {
+        [void]$options.Children.Add((New-GameOption 'Mostrar la barra de tareas al bajar el ratón' $g.ShowTaskbar $g.Exe 'ShowTaskbar'))
+    }
 
     # Pantalla de la ventana sin bordes: botón con la elegida y menú con todas
     if ($g.Borderless) {
