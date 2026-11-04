@@ -1,2 +1,3 @@
 *.log
 setup/bin/
+__pycache__/

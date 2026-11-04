@@ -14,6 +14,7 @@ aparte de PowerShell, que ya viene con Windows.
 | Herramienta | Qué hace |
 |---|---|
 | **Audio AutoSwitch** | Cambia la salida de audio al conectar un dispositivo (auriculares Bluetooth, USB...) y vuelve al anterior disponible al desconectarlo. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
+| **Jarvis** | Asistente de voz con [OpenJarvis](https://github.com/open-jarvis/OpenJarvis): pulsa **Ctrl + Alt + J**, habla y te responde en voz alta en castellano, con una voz local gratuita o una de [ElevenLabs](https://elevenlabs.io). Entiende y piensa en tu PC (Whisper + Ollama). |
 | **Barra de tareas** | Configura posición, ocultación automática, alineación y tamaño de los iconos, búsqueda y pantallas de la barra de tareas, con un perfil independiente para Escritorio remoto. Botón y atajo (**Ctrl + Alt + B**) para restablecerla cuando la ocultación automática deja de responder. |
 | **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
@@ -152,6 +153,28 @@ En su página de ajustes:
   clic fuera. Lo que se cambie en la ventana dura hasta cerrarla.
 - Usa el servicio de Google Translate (sin cuenta ni clave), así que necesita Internet. No hay proceso en
   segundo plano: la ventana vive en el gestor y por eso abre al instante.
+
+### Jarvis
+
+- **Ctrl + Alt + J**: suena un pitido y te escucha hasta que te callas; lo transcribe con Whisper, lo piensa
+  con un modelo de Ollama a través de OpenJarvis y te lo dice con la voz elegida. Si lo pulsas mientras
+  habla, se calla. Recuerda los últimos turnos durante 5 minutos, por si quieres seguir la conversación.
+  Mientras hablas ya carga el modelo, y con una gráfica NVIDIA Whisper va en ella: responde en menos de un
+  segundo y medio desde que te callas.
+- **Voz en tu PC** (gratis y sin internet, con acento de España): Dave (por defecto), Sharvard (mujer u
+  hombre) con [Piper](https://github.com/rhasspy/piper), o Dora y Alex con Kokoro.
+- **Voz de ElevenLabs** (más natural, gasta créditos): Daniel, George, Brian, Lily, Sara Martin u **otra voz**
+  pegando su enlace o ID de [elevenlabs.io/voices](https://elevenlabs.io/voices). Hace falta su **clave**
+  (solo con el permiso *Text to Speech*), que se guarda cifrada para tu usuario de Windows. Las voces de la
+  biblioteca (como Sara Martin) necesitan un plan de pago para usarse por API; si una voz falla, habla Dave.
+  **Modelo de ElevenLabs**: Multilingüe v2 (la más natural) o Flash v2.5 (responde antes y gasta la mitad).
+- **Probar voz** la escucha al momento.
+- **Modelo de IA**: cualquiera de los que tengas en Ollama (por defecto, qwen3:8b).
+- **Abrir chat de voz**: abre el chat de OpenJarvis (`jarvis chat --voice`) con la misma voz y modelo.
+- La instalación no pide administrador: usa Python 3.10-3.13 (si no hay, instala el 3.13 para tu usuario),
+  crea un entorno propio con OpenJarvis y las voces locales (con NVIDIA, también CUDA para Whisper), instala Ollama si falta y descarga qwen3:8b si no tienes ningún
+  modelo (la primera vez son varios GB). Al desinstalarla se borran su entorno, las voces y el modelo de Whisper;
+  Ollama y sus modelos se quedan, por si los usas para otras cosas.
 
 > Los sonidos de Keyboard Sound y de Sonidos de dispositivos proceden de
 > [myinstants.com](https://www.myinstants.com), recortados y normalizados.
