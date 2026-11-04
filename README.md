@@ -18,6 +18,7 @@ aparte de PowerShell, que ya viene con Windows.
 | **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
+| **Traductor** | Con **Ctrl + Alt + T** abre una ventana para traducir palabras o textos entre más de 35 idiomas, con detección automática del idioma, traducción mientras escribes y copia con una tecla. |
 
 ## Instalar en un PC nuevo
 
@@ -138,6 +139,20 @@ En su página de ajustes:
 - No hay proceso en segundo plano: cambia los sonidos del sistema de tu usuario y los
   vuelve a aplicar al iniciar sesión. Al desactivarla o desinstalarla vuelven los de Windows.
 
+### Traductor
+
+- **Ctrl + Alt + T** (o el botón **Abrir** de la portada) abre una ventana abajo a la derecha, en la esquina;
+  el mismo atajo o **Esc** la cierran. Se puede arrastrar por la cabecera.
+- Traduce **mientras escribes** y **detecta el idioma**. Si el texto ya está en el idioma de destino, lo
+  traduce al **alternativo** (por defecto: a español y, si ya está en español, a inglés).
+- Para palabras sueltas muestra **otras traducciones** por categoría (sustantivo, verbo...).
+- **Intro** traduce ya, **Mayús + Intro** añade una línea, **Ctrl + Intro** copia la traducción y cierra,
+  **Ctrl + Mayús + S** (o la flecha doble) intercambia los idiomas. Los idiomas tienen buscador.
+- En sus ajustes, los **idiomas por defecto** (desde cuál, a cuál y el alternativo) y si se cierra al hacer
+  clic fuera. Lo que se cambie en la ventana dura hasta cerrarla.
+- Usa el servicio de Google Translate (sin cuenta ni clave), así que necesita Internet. No hay proceso en
+  segundo plano: la ventana vive en el gestor y por eso abre al instante.
+
 > Los sonidos de Keyboard Sound y de Sonidos de dispositivos proceden de
 > [myinstants.com](https://www.myinstants.com), recortados y normalizados.
 
@@ -184,7 +199,7 @@ Crea `tools/<id>/` con:
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`) |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
 | `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
-| `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa (el usuario puede cambiarlo; se guarda en `data\hotkeys.json`); el script devuelve el texto del aviso |
+| `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa (el usuario puede cambiarlo; se guarda en `data\hotkeys.json`); el script devuelve el texto del aviso (si no devuelve nada, no hay aviso) |
 | `disable.ps1` | no | Deja el sistema como estaba al desactivarla |
 
 El gestor y el instalador la detectan solos. Sube `VERSION` para que los PCs

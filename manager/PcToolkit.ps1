@@ -18,7 +18,7 @@
 #              repintar sola, $script:HomeSignatures['<id>'] = { ... }
 #   "hotkey" en tool.json: { "keys": "Ctrl+Alt+A", "script": "x.ps1", "description": "..." }
 #              atajo global mientras la herramienta esté activa; el script devuelve el texto
-#              del aviso que aparece abajo en el centro.
+#              del aviso que aparece abajo en el centro (si no devuelve nada, no hay aviso).
 param([switch]$Show)
 
 $ErrorActionPreference = 'Stop'
@@ -1148,8 +1148,8 @@ $hotkeys.Add_Pressed({
     param($s, $e)
     $t = $hotkeyTools[$s.LastId - 1]
     try {
-        $text = & { param($path) . $path } (Join-Path $t.Dir $t.hotkey.script)
-        Show-Osd (ConvertTo-Glyph $t.icon) ([string]@($text)[-1]) "$(Format-Hotkey (Get-ToolHotkey $t))  ·  $($t.name)"
+        $text = [string]@(& { param($path) . $path } (Join-Path $t.Dir $t.hotkey.script))[-1]
+        if ($text) { Show-Osd (ConvertTo-Glyph $t.icon) $text "$(Format-Hotkey (Get-ToolHotkey $t))  ·  $($t.name)" }
         if ($win.IsVisible) { Update-Page }
     } catch { Write-ManagerLog "ERROR atajo de $($t.id): $($_.Exception.Message)" }
 })
