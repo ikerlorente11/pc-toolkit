@@ -698,7 +698,7 @@ $NotInstalledCardXaml = @'
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
         <TextBlock Style="{StaticResource Body}" Text="No instalada"/>
-        <TextBlock Style="{StaticResource Caption}" Text="Se instala para el usuario actual, sin permisos de administrador."/>
+        <TextBlock x:Name="Note" Style="{StaticResource Caption}" Text="Se instala para el usuario actual, sin permisos de administrador."/>
       </StackPanel>
       <Button x:Name="Install" Grid.Column="1" Style="{StaticResource AccentButton}" Content="Instalar" VerticalAlignment="Center"/>
     </Grid>
@@ -722,6 +722,7 @@ function Show-ToolPage([string]$Id) {
     # Sin instalar: solo la descripción completa y el botón de instalar
     if ($state -eq 'NotInstalled') {
         $card = New-Ui $NotInstalledCardXaml
+        if ($t.installNote) { $card.FindName('Note').Text = $t.installNote }   # p. ej., si instala un programa aparte
         Connect-ToolInstall $card $t
         [void]$panel.Children.Add($card)
         $script:settingsSignature = $null

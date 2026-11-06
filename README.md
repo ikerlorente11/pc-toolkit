@@ -7,7 +7,9 @@ Mi librería de pequeñas utilidades para Windows, con **un solo instalador** y 
 configurarlas, instalarlas o quitarlas.
 
 Funciona en Windows 10/11, **sin permisos de administrador** y sin instalar nada
-aparte de PowerShell, que ya viene con Windows.
+aparte de PowerShell, que ya viene con Windows. Las únicas excepciones son **Everything** y
+**LocalSend**, que integran esos programas: si faltan, los instalan con winget, y Everything
+pide permisos de administrador una vez para su servicio de indexado.
 
 ## Herramientas
 
@@ -16,8 +18,10 @@ aparte de PowerShell, que ya viene con Windows.
 | **Audio AutoSwitch** | Cambia la salida de audio al conectar un dispositivo (auriculares Bluetooth, USB...) y vuelve al anterior disponible al desconectarlo. Cambio rápido desde el panel o con **Ctrl + Alt + A**. |
 | **Jarvis** | Asistente de voz con [OpenJarvis](https://github.com/open-jarvis/OpenJarvis): pulsa **Ctrl + Alt + J**, habla y te responde en voz alta en castellano, con una voz local gratuita o una de [ElevenLabs](https://elevenlabs.io). Entiende y piensa en tu PC (Whisper + Ollama). |
 | **Barra de tareas** | Configura posición, ocultación automática, alineación y tamaño de los iconos, búsqueda y pantallas de la barra de tareas, con un perfil independiente para Escritorio remoto. Botón y atajo (**Ctrl + Alt + B**) para restablecerla cuando la ocultación automática deja de responder. |
+| **Everything** | Con **Ctrl + Alt + F** abre una ventana para buscar cualquier archivo o carpeta del PC por su nombre al instante, con el índice de [Everything](https://www.voidtools.com) (voidtools). Abre el resultado, su carpeta o copia su ruta sin tocar el ratón. |
 | **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
+| **LocalSend** | Pasa archivos entre el PC, el móvil y otros ordenadores de la red local, sin cuenta ni Internet, con [LocalSend](https://localsend.org). Lo deja en la bandeja para recibir y lo añade al menú **Enviar a** del Explorador. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
 | **Traductor** | Con **Ctrl + Alt + T** abre una ventana para traducir palabras o textos entre más de 35 idiomas, con detección automática del idioma, traducción mientras escribes y copia con una tecla. |
 
@@ -105,6 +109,23 @@ En su página de ajustes:
 > Cambiar la posición reinicia el Explorador de Windows. Windows 11 no admite la barra en
 > los laterales (queda vacía), por eso ahí solo se ofrece abajo y arriba.
 
+### Everything
+
+- **Ctrl + Alt + F** (o el botón **Buscar** de la portada) abre una ventana arriba, centrada; busca
+  **mientras escribes** en el índice de Everything, que responde en milisegundos aunque haya millones de
+  archivos. Vale su sintaxis: `*.pdf`, `ext:mp4 vacaciones`, `size:>1gb`...
+- **Intro** abre el resultado, **Ctrl + Intro** abre su carpeta con él seleccionado,
+  **Ctrl + Mayús + Intro** lo abre como administrador y **Ctrl + Mayús + C** copia su ruta. Las flechas
+  mueven la selección y **Esc** cierra. También hay botones para abrir la ubicación y copiar la ruta.
+- En sus ajustes: el **orden** (nombre, fecha de modificación, ruta o tamaño), mostrar u ocultar
+  **carpetas**, **buscar también en la ruta**, **ocultar la papelera de reciclaje** y si la ventana se
+  cierra al hacer clic fuera. También muestra si Everything está en marcha, con botón para iniciarlo.
+- Al instalarla, si Everything no está instalado, lo instala con winget (el MSI oficial, con su
+  servicio de indexado): Windows pide **permisos de administrador una vez** y, si se rechazan, la
+  instalación se cancela. Si ya lo tenías, no pide nada. La tarea arranca Everything en la bandeja al
+  iniciar sesión (es el que atiende las búsquedas); la ventana vive en el gestor, así que abre al instante.
+- Desinstalar la herramienta no desinstala Everything (se quita desde Configuración > Aplicaciones).
+
 ### Juegos
 
 - **Juegos**: lista de ejecutables (por defecto, The Binding of Isaac: `isaac-ng.exe`). Para añadir
@@ -129,6 +150,20 @@ En su página de ajustes:
 - **Volumen**: el de los sonidos, sin cambiar el del sistema.
 - **Probar**: campo para escribir y escuchar el sonido y el volumen elegidos.
 - **Iniciar con Windows**: si está desactivado, solo suena mientras la herramienta esté activada.
+
+### LocalSend
+
+- Con la herramienta activada, **LocalSend se inicia oculto en la bandeja** al iniciar sesión para que
+  el PC aparezca en el móvil y pueda recibir archivos. En la portada sale con qué nombre lo ven los demás
+  dispositivos.
+- **Enviar** (portada) o **Enviar archivos...** (ajustes): eliges los archivos y LocalSend se abre con
+  ellos listos para mandarlos. **Clic derecho > Enviar a > LocalSend** en el Explorador hace lo mismo
+  (se puede quitar en sus ajustes; es el mismo acceso que crea la opción "Menú contextual" de LocalSend).
+- Al instalarla, si LocalSend no está instalado, lo instala con winget **para el usuario actual, sin
+  permisos de administrador**. La primera vez que recibe, Windows puede preguntar si le permites
+  acceder a la red: acéptalo para las redes privadas.
+- Al desactivarla deja de iniciarse solo y se quita de **Enviar a**; si está abierto no se cierra (podría
+  estar pasando archivos). Desinstalar la herramienta no desinstala LocalSend.
 
 ### Sonidos de dispositivos
 
@@ -218,8 +253,8 @@ Crea `tools/<id>/` con:
 
 | Archivo | Obligatorio | Qué hace |
 |---|---|---|
-| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `summary` (3-4 palabras para la portada), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos) |
-| `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`) |
+| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `summary` (3-4 palabras para la portada), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos), `installNote` (opcional: aviso junto al botón Instalar si no se instala "para el usuario, sin admin") |
+| `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`). Si integra un programa de otro fabricante, lo instala con `Install-WingetPackage` (`-Elevated` si necesita admin: Windows pregunta) y cuenta el progreso con `Set-ToolStatus` |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
 | `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
 | `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa (el usuario puede cambiarlo; se guarda en `data\hotkeys.json`); el script devuelve el texto del aviso (si no devuelve nada, no hay aviso) |

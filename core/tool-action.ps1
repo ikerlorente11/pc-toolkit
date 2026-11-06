@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 function Set-Status($text) { Set-Content -Path $StatusFile -Value $text -Encoding UTF8 }
+$env:PCTOOLKIT_STATUS = $StatusFile   # para que el install.ps1 de la herramienta cuente su progreso (Set-ToolStatus)
 
 try {
     Import-Module (Join-Path $PSScriptRoot 'Toolkit.psm1')

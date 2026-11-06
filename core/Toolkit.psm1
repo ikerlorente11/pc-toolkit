@@ -1,7 +1,8 @@
 # Toolkit.psm1 - Funciones comunes de PC Toolkit (instalador global, gestor y herramientas)
 #
 # Cada herramienta vive en tools\<id>\ con:
-#   tool.json      manifiesto (id, name, description, task, process opcional, log opcional)
+#   tool.json      manifiesto (id, name, description, task, process opcional, log opcional, installNote
+#                  opcional: aviso junto al boton Instalar si no es "para el usuario, sin admin")
 #   install.ps1    registra su tarea programada (obligatorio)
 #   settings.ps1   pagina de ajustes dentro del gestor (opcional; ver manager\PcToolkit.ps1)
 #   home.ps1       bloque dentro de su tarjeta en la portada del gestor (opcional)
@@ -56,6 +57,32 @@ function Get-Tools {
 }
 
 function Get-CurrentUserId { [Security.Principal.WindowsIdentity]::GetCurrent().Name }
+
+# Texto de progreso de una instalacion: en el gestor sale bajo la herramienta (tool-action.ps1 deja la
+# ruta en PCTOOLKIT_STATUS); en el instalador global, en la consola
+function Set-ToolStatus([string]$Text) {
+    if ($env:PCTOOLKIT_STATUS) { Set-Content -Path $env:PCTOOLKIT_STATUS -Value $Text -Encoding UTF8 }
+    else { Write-Host "  $Text" }
+}
+
+# Instala un programa de otro fabricante con winget. -Elevated: lo lanza como administrador, asi que
+# Windows muestra el aviso de permisos (UAC) y el usuario decide; si lo rechaza, se cancela.
+function Install-WingetPackage([string]$Id, [string[]]$Arguments = @(), [switch]$Elevated) {
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (-not $winget) { throw 'Falta winget (el Instalador de aplicacion de Microsoft Store). Instalalo y vuelve a intentarlo.' }
+    $argv = @('install', '--id', $Id, '--exact', '--source', 'winget', '--silent', '--disable-interactivity',
+              '--accept-package-agreements', '--accept-source-agreements') + $Arguments
+    if ($Elevated) {
+        try { $p = Start-Process $winget.Source -ArgumentList $argv -Verb RunAs -WindowStyle Hidden -Wait -PassThru }
+        catch { throw 'Instalacion cancelada: no se concedieron permisos de administrador.' }
+    } else {
+        $p = Start-Process $winget.Source -ArgumentList $argv -WindowStyle Hidden -Wait -PassThru
+    }
+    # 0x8A150061: ya estaba instalado; 0x8A15002B: no hay nada que actualizar
+    if ($p.ExitCode -notin 0, -1978335135, -1978335189) {
+        throw ('winget no pudo instalar {0} (codigo 0x{1:X8}).' -f $Id, $p.ExitCode)
+    }
+}
 
 # Accion de tarea programada que ejecuta un script de PowerShell sin mostrar ventana
 function New-HiddenTaskAction([string]$Script) {
