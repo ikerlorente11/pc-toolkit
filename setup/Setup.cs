@@ -93,7 +93,7 @@ class SetupForm : Form {
         title.AutoSize = true;
         title.Location = new Point(S(84), S(18));
         Label subtitle = new Label();
-        subtitle.Text = "Utilidades para Windows. No necesita permisos de administrador.";
+        subtitle.Text = "Utilidades para Windows. Instala solo las que elijas.";
         subtitle.ForeColor = sub;
         subtitle.AutoSize = true;
         subtitle.Location = new Point(S(86), S(50));
@@ -206,9 +206,8 @@ class SetupForm : Form {
             tools.Add(t);
         }
 
-        bool anyInstalled = false;
         bool[] installed = new bool[tools.Count];
-        for (int i = 0; i < tools.Count; i++) { installed[i] = TaskExists(tools[i].Task); anyInstalled |= installed[i]; }
+        for (int i = 0; i < tools.Count; i++) installed[i] = TaskExists(tools[i].Task);
 
         int y = 0;
         for (int i = 0; i < tools.Count; i++) {
@@ -217,7 +216,7 @@ class SetupForm : Form {
             cb.Font = new Font("Segoe UI Semibold", 10f);
             cb.AutoSize = true;
             cb.Location = new Point(0, y);
-            cb.Checked = anyInstalled ? installed[i] : true;
+            cb.Checked = installed[i];   // nada marcado de antemano: solo las que ya están (para actualizarlas)
             Label desc = new Label();
             desc.Text = tools[i].Description;
             desc.ForeColor = sub;
@@ -230,14 +229,14 @@ class SetupForm : Form {
             y += S(76);
         }
         Label hint = new Label();
-        hint.Text = "Todo se puede ajustar después desde el icono de PC Toolkit en la bandeja del sistema.";
+        hint.Text = "Si no marcas ninguna, se instala solo el gestor: desde su icono en la bandeja del sistema puedes añadirlas, configurarlas o quitarlas cuando quieras.";
         hint.ForeColor = sub;
         hint.AutoSize = false;
         hint.Location = new Point(0, y);
         hint.Size = new Size(S(460), S(40));
         toolsPanel.Controls.Add(hint);
 
-        SetStatus("Elige qué herramientas quieres en este PC:", text);
+        SetStatus("Marca las herramientas que quieras en este PC:", text);
         toolsPanel.Visible = true;
         btnInstall.Text = "Instalar";
         btnInstall.Enabled = true;
