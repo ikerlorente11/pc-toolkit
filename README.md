@@ -7,9 +7,9 @@ Mi librería de pequeñas utilidades para Windows, con **un solo instalador** y 
 configurarlas, instalarlas o quitarlas.
 
 Funciona en Windows 10/11, **sin permisos de administrador** y sin instalar nada
-aparte de PowerShell, que ya viene con Windows. Las únicas excepciones son **Everything** y
-**LocalSend**, que integran esos programas: si faltan, los instalan con winget, y Everything
-pide permisos de administrador una vez para su servicio de indexado.
+aparte de PowerShell, que ya viene con Windows. Las herramientas que integran programas de
+otros (**Everything**, **LocalSend** y **Jarvis**) los instalan solas si faltan; de todas ellas,
+solo Everything pide permisos de administrador, una vez, para su servicio de indexado.
 
 ## Herramientas
 
