@@ -4,7 +4,7 @@
 # Espera el evento de Windows "PcToolkit.Jarvis.Listen" (lo activa el atajo del gestor) y entonces:
 #   escucha el micro hasta que te callas -> lo transcribe con Whisper (en la gráfica si hay NVIDIA) ->
 #   se lo pasa al modelo de Ollama con OpenJarvis -> lo lee con la voz elegida (local o ElevenLabs).
-# Mientras hablas ya va cargando el modelo de Ollama, por si se había dormido.
+# Mientras hablas ya va cargando el modelo de Ollama (y lo abre si no estaba en marcha).
 # Si el atajo llega mientras habla, se calla. El estado se deja en status.json para el gestor.
 #
 # Uso:
@@ -33,6 +33,7 @@ import local_voices  # noqa: E402
 
 DEFAULT_TTS_MODEL = "eleven_multilingual_v2"
 OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_START_SECONDS = 30                   # espera máxima al abrir Ollama al usar el atajo
 NUM_CTX = 4096                               # el mismo al precargar y al preguntar: si cambia, Ollama recarga el modelo
 HISTORY_TURNS = 4                            # pares pregunta/respuesta que recuerda
 HISTORY_MINUTES = 5                          # tras este rato sin hablar, empieza de cero
@@ -282,6 +283,43 @@ def transcribe(model, wav: bytes) -> str:
 
 # --- Conversación ---
 
+def ollama_running() -> bool:
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", 11434), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+_ollama_lock = threading.Lock()
+
+
+def start_ollama() -> bool:
+    """Abre Ollama (su app de bandeja si existe; si no, "ollama serve" oculto) si no está en marcha.
+    No se abre al iniciar sesión: solo cuando Jarvis lo necesita, al pulsar el atajo."""
+    with _ollama_lock:
+        if ollama_running():
+            return True
+        import shutil
+        exe = shutil.which("ollama") or os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe")
+        if not os.path.exists(exe):
+            log.warning("No se encuentra Ollama")
+            return False
+        app = os.path.join(os.path.dirname(exe), "ollama app.exe")
+        log.info("Abriendo Ollama...")
+        if os.path.exists(app):
+            subprocess.Popen([app], close_fds=True)
+        else:
+            subprocess.Popen([exe, "serve"], creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True)
+        for _ in range(OLLAMA_START_SECONDS * 2):
+            if ollama_running():
+                return True
+            time.sleep(0.5)
+        log.warning("Ollama no ha arrancado en %d s", OLLAMA_START_SECONDS)
+        return False
+
+
 def clean_answer(text: str) -> str:
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
     text = re.sub(r"[*_#`>|]+", "", text)
@@ -309,8 +347,9 @@ class Assistant:
                                     "Hola.", self.settings.voices_dir)
         except Exception:
             log.exception("No se pudo cargar la voz local")
-        self.connect_engine()
-        self.status.set("idle", Error="" if self.engine else "Ollama no responde")
+        if ollama_running():   # si no está abierto, se abre al usar el atajo (no al iniciar sesión)
+            self.connect_engine()
+        self.status.set("idle", Error="")
         log.info("Listo. Modelo: %s · voz: %s", self.model(), self.settings.voice())
 
     def connect_engine(self) -> None:
@@ -330,6 +369,8 @@ class Assistant:
         """Carga el modelo en Ollama (si se había dormido) mientras el usuario habla."""
         def run():
             try:
+                if not start_ollama():
+                    return
                 import httpx
                 httpx.post(f"{OLLAMA_URL}/api/generate", json={"model": self.model(), "keep_alive": "10m", "options": {"num_ctx": NUM_CTX}}, timeout=60)
             except Exception:
@@ -380,11 +421,11 @@ class Assistant:
 
         if time.time() - self.last_turn > HISTORY_MINUTES * 60:
             self.history = []
-        if self.engine is None:
+        if self.engine is None and start_ollama():
             self.connect_engine()
         t = time.time()
         if self.engine is None:
-            answer = "No consigo hablar con Ollama. Comprueba que está abierto."
+            answer = "No consigo abrir Ollama. Comprueba que está instalado."
         else:
             prompt = SYSTEM_PROMPT.format(user=os.environ.get("USERNAME", "su dueño"),
                                           now=time.strftime("%A %d/%m/%Y %H:%M"))
