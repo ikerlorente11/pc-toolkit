@@ -1,0 +1,10 @@
+{
+  "id": "game-mode",
+  "name": "Modo juegos",
+  "icon": "E945",
+  "summary": "Arranque sin hipervisor para emuladores",
+  "description": "Los emuladores como KytyPS5 van mucho más lentos con el hipervisor de Windows (Hyper-V/VBS) activo, pero WSL2 y Docker lo necesitan. Crea una entrada de arranque sin hipervisor ni VBS y permite cambiar de modo desde su tarjeta o, al abrir un emulador, desde un aviso; al abrir Docker o WSL en modo juegos, ofrece volver al normal. El modo elegido se mantiene en cada reinicio hasta que lo cambies. Pide permisos de administrador una sola vez, al instalarla.",
+  "task": "PcToolkitGameMode",
+  "process": "GameMode\\.ps1",
+  "log": "GameMode.log"
+}
