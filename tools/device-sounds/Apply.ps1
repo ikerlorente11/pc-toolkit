@@ -3,6 +3,12 @@
 # cambiado, p. ej. al cambiar de tema) y al activar la herramienta.
 
 . (Join-Path $PSScriptRoot 'common.ps1')
+Import-Module (Join-Path $PSScriptRoot '..\..\core\Toolkit.psm1')
+
+# Si la herramienta está desactivada (p. ej. se desactivó mientras esto arrancaba), los de Windows
+$tool = Get-Tools | Where-Object id -eq 'device-sounds'
+if ((Get-ToolState $tool) -ne 'Enabled') { Restore-DeviceSounds; return }
+
 Invoke-DeviceSounds
 
 $cfg = Get-DeviceSoundsConfig

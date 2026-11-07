@@ -93,8 +93,7 @@ foreach ($t in $selected) {
     $wasDisabled = (Get-ToolState $t) -eq 'Disabled'
     Write-Host "Instalando $($t.name)..."
     try {
-        Install-Tool $t
-        if ($wasDisabled) { Disable-Tool $t }
+        Install-Tool $t -Disabled:$wasDisabled
         if ($legacyFound -contains $t.id) {
             Remove-Item (Join-Path $env:LOCALAPPDATA $legacy[$t.id]) -Recurse -Force -ErrorAction SilentlyContinue
         }

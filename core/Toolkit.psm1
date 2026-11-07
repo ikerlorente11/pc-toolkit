@@ -6,6 +6,7 @@
 #   settings.ps1   pagina de ajustes dentro del gestor (opcional; ver manager\PcToolkit.ps1)
 #   home.ps1       bloque dentro de su tarjeta en la portada del gestor (opcional)
 #   disable.ps1    deja el sistema como estaba al desactivarla (opcional)
+#   uninstall.ps1  limpieza extra al desinstalarla, antes de borrar su tarea y sus datos (opcional)
 # Estado: sin tarea = no instalada; tarea deshabilitada = desactivada; si no, activa.
 
 $ErrorActionPreference = 'Stop'
@@ -99,10 +100,12 @@ function Get-ToolLog($Tool) {
     if ($Tool.log) { Join-Path $Root "data\$($Tool.id)\$($Tool.log)" }
 }
 
-function Install-Tool($Tool) {
+# -Disabled: la deja instalada pero desactivada sin llegar a lanzarla (al actualizar una que estaba
+# desactivada; si se lanzara, su tarea podria terminar despues de disable.ps1 y deshacerlo)
+function Install-Tool($Tool, [switch]$Disabled) {
     Stop-ToolProcess $Tool
     & (Join-Path $Tool.Dir 'install.ps1')
-    Start-ScheduledTask -TaskName $Tool.task
+    if ($Disabled) { Disable-Tool $Tool } else { Start-ScheduledTask -TaskName $Tool.task }
 }
 
 function Enable-Tool($Tool) {
@@ -121,6 +124,8 @@ function Disable-Tool($Tool) {
 function Uninstall-Tool($Tool) {
     if (Get-ScheduledTask -TaskName $Tool.task -ErrorAction SilentlyContinue) {
         Disable-Tool $Tool
+        $hook = Join-Path $Tool.Dir 'uninstall.ps1'
+        if (Test-Path $hook) { & $hook }
         Unregister-ScheduledTask -TaskName $Tool.task -Confirm:$false
     }
     $data = Join-Path $Root "data\$($Tool.id)"
