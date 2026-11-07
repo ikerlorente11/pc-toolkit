@@ -42,7 +42,7 @@ $state = switch ($status.State) {
 }
 $problems = @()
 if (-not (Test-Path $script:JarvisPython)) { $problems += 'Falta el entorno de Python: desinstala y vuelve a instalar Jarvis.' }
-if (-not $running) { $problems += 'Ollama no está en marcha: Jarvis lo abre solo al arrancar.' }
+if (-not $running) { $problems += 'Ollama está cerrado: Jarvis lo abre solo al pulsar el atajo (no al iniciar sesión).' }
 elseif (-not $models) { $problems += 'Ollama no tiene ningún modelo. Descarga uno, por ejemplo: ollama pull qwen3:8b' }
 if (-not $hasKey -and -not (Test-LocalVoice $cfg.Voice)) { $problems += 'Sin clave de ElevenLabs habla con la voz Dave (local).' }
 if ($status.Error) { $problems += "Último error: $($status.Error)" }

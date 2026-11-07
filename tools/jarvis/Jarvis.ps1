@@ -1,5 +1,5 @@
 ﻿# Jarvis.ps1 - Lanzador del asistente de voz (lo arranca oculto la tarea "PcToolkitJarvis").
-# Pone en marcha Ollama si hace falta y mantiene vivo jarvis_voice.py (si se cae, lo vuelve a abrir).
+# Mantiene vivo jarvis_voice.py (que abre Ollama al usar el atajo) (si se cae, lo vuelve a abrir).
 # El asistente se cierra solo cuando se cierra este lanzador (el gestor lo para al desactivar).
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -13,7 +13,7 @@ function Write-Log($msg) {
 }
 
 if (-not (Test-Path $script:JarvisPythonW)) { Write-Log 'Falta el entorno de Python: reinstala Jarvis desde el panel.'; exit 1 }
-if (-not (Start-Ollama)) { Write-Log 'Ollama no está en marcha: Jarvis lo volverá a intentar al preguntarle.' }
+# Ollama no se abre aquí (al iniciar sesión): jarvis_voice.py lo abre al pulsar el atajo
 
 Set-JarvisEnvironment
 $script = Join-Path $PSScriptRoot 'jarvis_voice.py'
