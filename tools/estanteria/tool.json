@@ -1,0 +1,11 @@
+{
+  "id": "estanteria",
+  "name": "La Estantería",
+  "icon": "E82D",
+  "summary": "Lee tus cómics y libros",
+  "description": "Lector de cómics, manga y libros (cbz, cbr, pdf, epub…) de la carpeta Lectura de tu Archivador, con la misma biblioteca y el mismo progreso que la web y el móvil: seguir leyendo, series, notas y marcadores. Instala la app de escritorio La Estantería (se descarga de las releases de PC Toolkit) y la abre con un atajo de teclado; los cómics y epub del Explorador se abren con ella.",
+  "installNote": "Descarga e instala la app La Estantería para el usuario actual, sin permisos de administrador.",
+  "task": "PcToolkitEstanteria",
+  "log": "Estanteria.log",
+  "hotkey": { "keys": "Ctrl+Alt+L", "script": "hotkey.ps1", "description": "Abre La Estantería" }
+}

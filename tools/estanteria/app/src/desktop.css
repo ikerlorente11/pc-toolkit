@@ -1,0 +1,24 @@
+/* The desktop shell: the viewer's styles plus a light/dark theme of its own (there is no OpenCloud theme here). */
+:root {
+  --oc-role-surface: #ffffff; --oc-role-surface-container: #f2f2f5; --oc-role-surface-container-high: #e6e6ea;
+  --oc-role-outline-variant: #e0e0e6; --oc-role-on-surface-variant: #6f6f78; --oc-role-on-surface: #1b1b1f; --oc-role-background: #fafafc;
+  --oc-role-inverse-surface: #2b2b30; --oc-role-inverse-on-surface: #fff;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --oc-role-surface: #1c1c20; --oc-role-surface-container: #26262b; --oc-role-surface-container-high: #313137;
+    --oc-role-outline-variant: #3a3a41; --oc-role-on-surface-variant: #a3a3ad; --oc-role-on-surface: #ededf2; --oc-role-background: #141417;
+    --oc-role-inverse-surface: #ededf2; --oc-role-inverse-on-surface: #1b1b1f;
+  }
+}
+html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--oc-role-background); color: var(--oc-role-on-surface); }
+#app { height: 100%; }
+/* the icons come with the app (public/icons), not from OpenCloud */
+.es-setup { max-width: 520px; display: grid; gap: 14px; }
+.es-setup label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.es-setup input { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--es-line); background: var(--es-surface); color: inherit; font: inherit; font-size: 14px; }
+.es-setup input:focus { outline: 2px solid var(--es-accent); outline-offset: 1px; }
+.es-setup p { margin: 0; line-height: 1.5; }
+.es-setup-actions { display: flex; gap: 8px; align-items: center; }
+.es-version { opacity: .7; }

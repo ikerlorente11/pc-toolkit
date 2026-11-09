@@ -1,9 +1,12 @@
 name: CI
 
 # CI común (github.com/ikerlorente11/ci): en cada push, que todos los scripts se puedan analizar y, si los hay, los tests de Pester.
+# La app de escritorio de La Estantería (tools/estanteria/app, Tauri) se compila en Windows cuando cambia y, con una
+# etiqueta estanteria-v*, se publica su instalador en Releases, que es lo que instala la herramienta.
 on:
   push:
     branches: [main]
+    tags: ["estanteria-v*"]
     # Solo documentación: no lanza el CI (los lunes y a mano se ejecuta todo igualmente)
     paths-ignore: ["**.md", "docs/**", ".claude/**", "LICENSE"]
   pull_request:
@@ -17,3 +20,43 @@ concurrency:
 jobs:
   powershell:
     uses: ikerlorente11/ci/.github/workflows/powershell.yml@main
+
+  changes:
+    uses: ikerlorente11/ci/.github/workflows/changes.yml@main
+    with:
+      filters: |
+        estanteria-app: ['tools/estanteria/app/**']
+  estanteria-app:
+    name: La Estantería (Windows)
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changed), 'estanteria-app') || startsWith(github.ref, 'refs/tags/estanteria-v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: tools/estanteria/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: tools/estanteria/app/src-tauri
+      - run: pnpm install --no-frozen-lockfile
+      # Sin etiqueta solo compila (comprueba que el instalador sale); con etiqueta estanteria-v* publica la release.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: tools/estanteria/app
+          tagName: ${{ startsWith(github.ref, 'refs/tags/estanteria-v') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/estanteria-v') && format('La Estantería {0}', github.ref_name) || '' }}
+          releaseBody: "Instalador de la app de escritorio La Estantería. La herramienta de PC Toolkit lo instala sola; también se puede ejecutar a mano."
+          releaseDraft: false
+          prerelease: false
