@@ -1,0 +1,16 @@
+name: CI
+
+# CI común (github.com/ikerlorente11/ci): en cada push, que todos los scripts se puedan analizar y, si los hay, los tests de Pester.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  powershell:
+    uses: ikerlorente11/ci/.github/workflows/powershell.yml@main
