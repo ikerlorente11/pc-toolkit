@@ -15,7 +15,7 @@
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-store": "^2.2.0",
-    "estanteria-viewer": "github:ikerlorente11/estanteria#b0b4aaffb094af2be64462ac5693351c43f2ab47&path:viewer",
+    "estanteria-viewer": "github:ikerlorente11/estanteria#f7ee467b9b33259cd2ae06a7afa760b586487895&path:viewer",
     "vue": "^3.5.13"
   },
   "devDependencies": {

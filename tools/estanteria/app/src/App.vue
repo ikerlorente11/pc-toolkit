@@ -48,7 +48,7 @@
         </section>
         <template v-else-if="store">
           <HomeView v-if="view.v === 'home'" />
-          <LibraryView v-else-if="view.v === 'library'" :q="view.q || ''" :kind="view.kind" :sort="view.sort" :folder="view.folder" />
+          <LibraryView v-else-if="view.v === 'library'" :q="view.q || ''" :kind="view.kind" :sort="view.sort" :folder="view.folder" :source="view.source" />
           <SeriesView v-else-if="view.v === 'series'" :key="`s${view.name}`" :name="view.name" />
           <ItemView v-else-if="view.v === 'item'" :key="`i${view.id}`" :id="view.id" />
           <SourcesView v-else-if="view.v === 'sources'" />
