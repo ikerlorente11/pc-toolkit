@@ -19,7 +19,7 @@ function script:Write-EstanteriaLog([string]$Text) {
 function script:Get-EstanteriaExe {
     $e = Get-ItemProperty $script:EstanteriaUninstallKey -ErrorAction SilentlyContinue
     if ($e.InstallLocation) {
-        $exe = Join-Path $e.InstallLocation 'la-estanteria.exe'
+        $exe = Join-Path $e.InstallLocation.Trim('"') 'la-estanteria.exe'   # NSIS la guarda entre comillas
         if (Test-Path $exe) { return $exe }
     }
     $exe = Join-Path $env:LOCALAPPDATA 'La Estantería\la-estanteria.exe'
@@ -28,7 +28,7 @@ function script:Get-EstanteriaExe {
 
 function script:Get-EstanteriaVersion {
     $exe = Get-EstanteriaExe
-    if ($exe) { (Get-Item $exe).VersionInfo.ProductVersion -replace '\.0$', '' }
+    if ($exe) { ((Get-Item $exe).VersionInfo.ProductVersion -split '\.')[0..2] -join '.' }   # 0.1.0.0 -> 0.1.0, como la etiqueta
 }
 
 function script:Test-EstanteriaRunning {
