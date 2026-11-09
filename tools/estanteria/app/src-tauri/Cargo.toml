@@ -1,6 +1,6 @@
 [package]
 name = "la-estanteria"
-version = "0.1.2"
+version = "0.1.3"
 description = "La Estantería: lee tus cómics, manga y libros de El Archivador"
 authors = ["Iker Lorente"]
 license = "PolyForm-Noncommercial-1.0.0"

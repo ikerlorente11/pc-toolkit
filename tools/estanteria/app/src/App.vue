@@ -12,6 +12,7 @@
         <nav class="es-nav">
           <a href="#" :class="{ on: view.v === 'home' }" @click.prevent="go({ v: 'home' })"><span class="es-ni"><i class="es-i es-i-home" aria-hidden="true"></i></span> Inicio</a>
           <a href="#" :class="{ on: view.v === 'library' }" @click.prevent="go({ v: 'library' })"><span class="es-ni"><i class="es-i es-i-grid" aria-hidden="true"></i></span> Biblioteca</a>
+          <a href="#" :class="{ on: view.v === 'catalogs' || view.v === 'catalog' }" @click.prevent="go({ v: 'catalogs' })"><span class="es-ni"><i class="es-i es-i-cloud" aria-hidden="true"></i></span> Catálogos</a>
           <a href="#" :class="{ on: view.v === 'sources' }" @click.prevent="go({ v: 'sources' })"><span class="es-ni"><i class="es-i es-i-server" aria-hidden="true"></i></span> Bibliotecas</a>
         </nav>
         <div class="es-lib">
@@ -51,6 +52,8 @@
           <SeriesView v-else-if="view.v === 'series'" :key="`s${view.name}`" :name="view.name" />
           <ItemView v-else-if="view.v === 'item'" :key="`i${view.id}`" :id="view.id" />
           <SourcesView v-else-if="view.v === 'sources'" />
+          <CatalogsView v-else-if="view.v === 'catalogs'" />
+          <CatalogView v-else-if="view.v === 'catalog'" :key="`c${view.kind}`" :kind="view.kind" :path="view.path" :q="view.q" />
         </template>
       </main>
     </template>
@@ -61,7 +64,7 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, reactive, ref, watch } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
-import { Api, Cover, HomeView, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE, createState, queryFromView,
+import { Api, CatalogView, CatalogsView, Cover, HomeView, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE, createState, queryFromView,
          viewFromQuery, type Item, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
 
