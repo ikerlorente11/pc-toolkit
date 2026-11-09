@@ -1,6 +1,6 @@
 {
   "name": "estanteria-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "La Estantería para Windows: lee tus cómics y libros de El Archivador (app de escritorio de PC Toolkit, Tauri 2)",
   "license": "PolyForm-Noncommercial-1.0.0",
