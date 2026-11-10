@@ -3,6 +3,7 @@
   "name": "Everything",
   "icon": "E721",
   "summary": "Busca archivos al instante",
+  "category": "Escritorio",
   "description": "Abre con un atajo de teclado una ventana para buscar cualquier archivo o carpeta del PC por su nombre al instante, con el índice de Everything (voidtools). Abre el resultado, su carpeta o copia su ruta sin tocar el ratón. Si Everything no está instalado, lo instala con winget; necesita permisos de administrador una vez para su servicio de indexado.",
   "installNote": "Si falta Everything, se instala con winget y Windows pedirá permisos de administrador una vez.",
   "task": "PcToolkitEverything",

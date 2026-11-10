@@ -3,6 +3,7 @@
   "name": "Traductor",
   "icon": "F2B7",
   "summary": "Traduce textos al momento",
+  "category": "Escritorio",
   "description": "Abre con un atajo de teclado una ventana para traducir palabras o textos entre más de 35 idiomas, con detección automática del idioma. Traduce mientras escribes, muestra otras traducciones de las palabras sueltas y copia el resultado con una tecla. Usa el servicio de Google Translate, así que necesita conexión a Internet.",
   "task": "PcToolkitTranslator",
   "log": "Translator.log",

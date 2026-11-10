@@ -3,6 +3,7 @@
   "name": "Audio AutoSwitch",
   "icon": "E7F6",
   "summary": "Cambio automático de audio",
+  "category": "Sonido",
   "description": "Cambia automáticamente la salida de audio al conectar un dispositivo, como unos auriculares Bluetooth o USB, y vuelve al anterior disponible al desconectarlo. Permite elegir qué dispositivos se usan, uno predeterminado y cambiar entre ellos desde el panel o con un atajo de teclado.",
   "task": "AudioAutoSwitch",
   "process": "AudioAutoSwitch\\.ps1",

@@ -3,6 +3,7 @@
   "name": "Keyboard Sound",
   "icon": "E765",
   "summary": "Sonidos al pulsar teclas",
+  "category": "Sonido",
   "description": "Reproduce un sonido cada vez que se pulsa una tecla. Permite elegir entre varios sonidos, ajustar su volumen sin cambiar el del sistema y decidir si se activa al iniciar sesión.",
   "task": "PcToolkitKeyboardSound",
   "process": "KeyboardSound\\.ps1",

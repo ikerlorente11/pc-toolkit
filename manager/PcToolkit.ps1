@@ -133,7 +133,8 @@ $logo.CacheOption = 'OnLoad'
 $logo.UriSource = [Uri]::new([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\pc-toolkit.png')))
 $logo.EndInit()
 $ui.Logo.Source = $logo
-$ui.Scroll.MaxHeight = [Windows.SystemParameters]::WorkArea.Height - 120
+# Como mucho 640 px de alto (o lo que quepa): a partir de ahí, el contenido se desplaza
+$ui.Scroll.MaxHeight = [Math]::Min([Windows.SystemParameters]::WorkArea.Height - 120, 640)
 if (-not $glass) { [Windows.Shell.WindowChrome]::GetWindowChrome($win).GlassFrameThickness = 0 }
 
 $win.Add_SourceInitialized({
@@ -464,9 +465,14 @@ function Switch-HomeView {
     Show-Home
 }
 
+# Si un grupo está plegado: lo que eligió el usuario; si nunca lo tocó, «Disponibles» empieza plegado
+function Test-GroupCollapsed([string]$Key) {
+    if ($script:prefs.Collapsed.ContainsKey($Key)) { [bool]$script:prefs.Collapsed[$Key] } else { $Key -eq 'available' }
+}
+
 # Título de grupo plegable: flecha + nombre + número de herramientas
 function New-GroupHeader([string]$Key, [string]$Title, [int]$Count) {
-    $collapsed = [bool]$script:prefs.Collapsed[$Key]
+    $collapsed = Test-GroupCollapsed $Key
     $h = New-Ui $GroupHeaderXaml
     $h.FindName('Chevron').Text = if ($collapsed) { [string][char]0xE76C } else { [string][char]0xE70D }
     $h.FindName('Title').Text = $Title
@@ -475,7 +481,7 @@ function New-GroupHeader([string]$Key, [string]$Title, [int]$Count) {
     [Windows.Automation.AutomationProperties]::SetName($h, "$Title ($Count), $(if ($collapsed) { 'plegado' } else { 'desplegado' })")
     $h.Add_Click({
         param($s, $e)
-        $script:prefs.Collapsed[$s.Tag] = -not [bool]$script:prefs.Collapsed[$s.Tag]
+        $script:prefs.Collapsed[$s.Tag] = -not (Test-GroupCollapsed $s.Tag)
         Save-HomePrefs
         Show-Home
     })
@@ -657,6 +663,9 @@ function New-AvailableTile($Tool) {
     $tile
 }
 
+# Orden de los temas en la portada; uno que no esté aquí va al final
+$CategoryOrder = @('Sonido', 'Escritorio', 'Juegos', 'Apps', 'Otras')
+
 function Show-Home {
     $script:page = 'home'
     $script:PageSignature = { Get-HomeSignature }
@@ -664,18 +673,27 @@ function Show-Home {
     $panel = New-Ui '<StackPanel/>'
     $states = @{}
     foreach ($t in $tools) { $states[$t.id] = Get-ToolState $t }
-    $groups = @(
-        @{ Key = 'installed'; Title = 'Instaladas';  Items = @($tools | Where-Object { $states[$_.id] -ne 'NotInstalled' }) }
-        @{ Key = 'available'; Title = 'Disponibles'; Items = @($tools | Where-Object { $states[$_.id] -eq 'NotInstalled' }) }
-    )
+    # Las instaladas, por temas ("category" de tool.json) cuando hay más de uno; cada grupo se pliega
+    $installed = @($tools | Where-Object { $states[$_.id] -ne 'NotInstalled' })
+    $cats = @($installed | ForEach-Object { if ($_.category) { $_.category } else { 'Otras' } } | Select-Object -Unique)
+    $groups = @()
+    if ($cats.Count -le 1) {
+        $groups += @{ Key = 'installed'; Title = 'Instaladas'; Items = $installed }
+    } else {
+        $known = @($CategoryOrder | Where-Object { $_ -in $cats }) + @($cats | Where-Object { $_ -notin $CategoryOrder })
+        foreach ($c in $known) {
+            $groups += @{ Key = "cat:$c"; Title = $c; Items = @($installed | Where-Object { $(if ($_.category) { $_.category } else { 'Otras' }) -eq $c }) }
+        }
+    }
+    $groups += @{ Key = 'available'; Title = 'Disponibles'; Items = @($tools | Where-Object { $states[$_.id] -eq 'NotInstalled' }) }
     foreach ($g in $groups) {
         if ($g.Key -eq 'available' -and -not $g.Items) { continue }
         [void]$panel.Children.Add((New-GroupHeader $g.Key $g.Title $g.Items.Count))
-        if ($script:prefs.Collapsed[$g.Key]) { continue }
+        if (Test-GroupCollapsed $g.Key) { continue }
         if (-not $g.Items) { [void]$panel.Children.Add((New-Hint 'No hay herramientas instaladas.')); continue }
         $container = if ($grid) { New-Ui '<UniformGrid Columns="2" Margin="0,0,-4,0"/>' } else { $panel }
         foreach ($t in $g.Items) {
-            $item = if ($g.Key -eq 'installed') {
+            $item = if ($g.Key -ne 'available') {
                 if ($grid) { New-InstalledTile $t $states[$t.id] } else { New-InstalledCard $t $states[$t.id] }
             } else {
                 if ($grid) { New-AvailableTile $t } else { New-AvailableCard $t }

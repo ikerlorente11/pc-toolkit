@@ -3,6 +3,7 @@
   "name": "Jarvis",
   "icon": "E720",
   "summary": "Asistente de voz con IA local",
+  "category": "Apps",
   "description": "Asistente de voz basado en OpenJarvis: pulsa el atajo, habla y te responde en voz alta en castellano. Entiende lo que dices con Whisper, piensa con un modelo de Ollama y habla con una voz local gratuita, todo en tu PC; opcionalmente, con una voz de ElevenLabs. También abre el chat de voz completo de OpenJarvis. La primera instalación descarga varios GB.",
   "task": "PcToolkitJarvis",
   "process": "jarvis\\\\Jarvis\\.ps1",

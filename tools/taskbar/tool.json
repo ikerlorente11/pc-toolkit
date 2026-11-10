@@ -3,6 +3,7 @@
   "name": "Barra de tareas",
   "icon": "E7F4",
   "summary": "Personaliza la barra de tareas",
+  "category": "Escritorio",
   "description": "Configura la posición, la ocultación automática, la alineación y el tamaño de los iconos, la búsqueda y las pantallas en las que aparece la barra de tareas, con un perfil independiente para las sesiones de Escritorio remoto. Incluye una acción para restablecer la barra cuando la ocultación automática deja de responder.",
   "task": "PcToolkitTaskbar",
   "log": "Taskbar.log",
