@@ -158,8 +158,12 @@ function Move-Flyout {
     $win.Top  = $wa.Bottom - $win.ActualHeight - 12
 }
 
+# Abrir es inmediato: se enseña la portada ya hecha (se prepara al arrancar y se mantiene al día) y, justo
+# después, el reloj mira si algo cambió y solo entonces la rehace. Rehacerla cuesta segundos (el XAML de cada
+# tarjeta y los home.ps1), y hacerlo antes de enseñar el panel era lo que hacía que tardara en abrirse.
 function Show-Flyout {
-    Show-Home
+    if ($script:page -ne 'home' -or -not $script:homeReady) { Show-Home }
+    $script:ticks = 4                       # el siguiente tic del reloj comprueba la firma de la página
     $ui.Anim.Opacity = 0
     $win.Show()
     # Lanzado oculto (run-hidden.vbs), Windows aplica SW_HIDE al primer ShowWindow del proceso: se repite
@@ -393,10 +397,15 @@ function Get-StatusText($Tool, [string]$State) {
 
 # Firma de la página de inicio: si no cambia, no se repinta
 function Get-HomeSignature {
+    # Una sola consulta de procesos para todas las herramientas (una por herramienta tardaba medio segundo)
+    $cmds = if ($tools | Where-Object process) {
+        @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -Property CommandLine | ForEach-Object CommandLine)
+    }
     ($tools | ForEach-Object {
         $busyText = if ($busy.ContainsKey($_.id)) { Get-BusyText $_.id }
         $own = if ($script:HomeSignatures.ContainsKey($_.id)) { & $script:HomeSignatures[$_.id] }
-        "$($_.id)=$(Get-ToolState $_)|$busyText|$($errors[$_.id])|$(if ($_.process) { [bool](Get-ToolProcess $_) })|$own"
+        $running = if ($_.process) { $p = $_.process; [bool]($cmds | Where-Object { $_ -match $p }) }
+        "$($_.id)=$(Get-ToolState $_)|$busyText|$($errors[$_.id])|$running|$own"
     }) -join ';'
 }
 
@@ -703,6 +712,7 @@ function Show-Home {
         if ($grid) { [void]$panel.Children.Add($container) }
     }
     Set-Page $panel 'PC Toolkit' $false
+    $script:homeReady = $true
     # El botón de vista muestra la vista a la que se cambia
     $ui.ViewButton.Content = if ($grid) { [string][char]0xE8FD } else { [string][char]0xF0E2 }
     [Windows.Automation.AutomationProperties]::SetName($ui.ViewButton, $(if ($grid) { 'Ver como lista' } else { 'Ver como cuadrícula' }))
@@ -1202,7 +1212,9 @@ $timer.Add_Tick({
 })
 $timer.Start()
 
+# La portada se prepara ya, con el panel oculto, para que el primer clic en el icono la enseñe al instante
 if ($Show) { Show-Flyout }
+else { [void]$win.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::ApplicationIdle, [Action]{ try { Show-Home } catch { Write-ManagerLog "ERROR (portada): $($_.Exception.Message)" } }) }
 $app.Run()
 
 $timer.Stop()
