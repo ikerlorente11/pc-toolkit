@@ -1,9 +1,12 @@
 //! La Estantería for the desktop: a Tauri shell around the shared viewer. The Rust side keeps the
 //! user's app token in the operating system's credential store and the items made available
 //! offline (see offline.rs); everything else happens in the web view against the service of the
-//! user's Archivador.
+//! user's Archivador. Comics and EPUBs of this computer open too (see local.rs).
 
+mod local;
 mod offline;
+
+use tauri::Emitter;
 
 const SERVICE: &str = "La Estantería";
 
@@ -35,13 +38,21 @@ fn secret_delete(account: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(path) = local::file_argument(argv) {
+                let _ = app.emit("open-file", path);
+            }
+            local::focus(app);
+        }))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(offline::Jobs::default())
+        .manage(local::Launch(std::sync::Mutex::new(local::file_argument(std::env::args()))))
         .register_uri_scheme_protocol("offline", offline::serve)
         .invoke_handler(tauri::generate_handler![
             secret_get, secret_set, secret_delete,
-            offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where
+            offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where,
+            local::local_open, local::local_launch_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running La Estantería");

@@ -66,7 +66,7 @@ fn root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("offline"))
 }
 
-fn item_dir<R: Runtime>(app: &AppHandle<R>, account: &str, id: u64) -> Result<PathBuf, String> {
+pub(crate) fn item_dir<R: Runtime>(app: &AppHandle<R>, account: &str, id: u64) -> Result<PathBuf, String> {
     Ok(root(app)?.join(clean(account)).join(id.to_string()))
 }
 

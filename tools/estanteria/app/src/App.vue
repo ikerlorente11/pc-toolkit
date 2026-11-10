@@ -76,8 +76,11 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { Api, CatalogView, CatalogsView, Cover, DownloadsView, HomeView, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE, createState, queryFromView,
-         viewFromQuery, type Item, type Store, type View } from 'estanteria-viewer'
+         viewFromQuery, type Item, type OfflineEntry, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
 import { accountKey, desktopBackend } from './lib/offline'
 
@@ -211,6 +214,33 @@ async function disconnect() {
   notify('Olvidado.')
 }
 
+// ---- files of this computer: a double click in the Explorer, a second launch, a file dropped here ----
+const OPENABLE = /\.(cbz|cbr|cb7|zip|rar|7z|epub)$/i
+let waiting: string | null = null
+async function openLocal(path: string) {
+  if (!connected.value || !offline.value) {
+    waiting = path
+    notify('Conecta con tu Archivador y el archivo se abrirá después.', true)
+    return
+  }
+  const name = path.split(/[\\/]/).pop() || path
+  if (!OPENABLE.test(name)) { notify(`${name}: La Estantería abre cbz, cbr, cb7 y epub de este PC.`, true); return }
+  notify(`Abriendo ${name}…`)
+  try {
+    const entry = await invoke<OfflineEntry>('local_open', { account: accountKey(connection.username, connection.url), path })
+    offline.value.addLocal(entry)
+    toast.text = ''
+    read(entry.item)
+  } catch (err: any) {
+    notify(`No se pudo abrir ${name}: ${err?.message || err}`, true)
+  }
+}
+listen<string>('open-file', (e) => openLocal(e.payload))
+getCurrentWebview().onDragDropEvent((e) => {
+  if (e.payload.type === 'drop' && e.payload.paths.length) openLocal(e.payload.paths[0])
+})
+watch(connected, (ok) => { if (ok && waiting) { const path = waiting; waiting = null; openLocal(path) } })
+
 // without connection, look again every so often (and when Windows says the network is back)
 setInterval(() => { if (connected.value && offline.value && !offline.value.state.online) refresh() }, 30000)
 window.addEventListener('online', () => { if (connected.value) refresh() })
@@ -223,5 +253,7 @@ onMounted(async () => {
   token = await loadToken(connection.username)
   await connect()
   if (!connected.value && view.value.v !== 'setup') go({ v: 'setup' }, true)
+  const launched = await invoke<string | null>('local_launch_path').catch(() => null)
+  if (launched) openLocal(launched)
 })
 </script>
