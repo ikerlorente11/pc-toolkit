@@ -21,8 +21,8 @@ importers:
         specifier: ^2.2.0
         version: 2.5.0
       estanteria-viewer:
-        specifier: github:ikerlorente11/estanteria#b375c4eafb1f3eb43d53548e7c96a4a07d3137f3&path:viewer
-        version: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/b375c4eafb1f3eb43d53548e7c96a4a07d3137f3#path:viewer(vue@3.5.45(typescript@5.9.3))
+        specifier: github:ikerlorente11/estanteria#ca1b32184c537f877674de540049f3dca5ae4a4a&path:viewer
+        version: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/ca1b32184c537f877674de540049f3dca5ae4a4a#path:viewer(vue@3.5.45(typescript@5.9.3))
       pdfjs-dist:
         specifier: 4.10.38
         version: 4.10.38
@@ -590,9 +590,9 @@ packages:
     resolution: {integrity: sha512-kTUIGKQ/mDPFoJ0oVfcmyJn4iBDRptjNVIzwIFR7tqWXdVI9xfA2RMwY/gbSpJG3lkdWNEjLap/NqVHZiJsdfg==}
     engines: {node: '>=0.10'}
 
-  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/b375c4eafb1f3eb43d53548e7c96a4a07d3137f3#path:viewer:
-    resolution: {path: viewer, tarball: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/b375c4eafb1f3eb43d53548e7c96a4a07d3137f3}
-    version: 0.2.0
+  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/ca1b32184c537f877674de540049f3dca5ae4a4a#path:viewer:
+    resolution: {path: viewer, tarball: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/ca1b32184c537f877674de540049f3dca5ae4a4a}
+    version: 0.3.0
     peerDependencies:
       vue: ^3.4.0
 
@@ -1194,9 +1194,10 @@ snapshots:
       event-emitter: 0.3.7
       type: 2.7.3
 
-  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/b375c4eafb1f3eb43d53548e7c96a4a07d3137f3#path:viewer(vue@3.5.45(typescript@5.9.3)):
+  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/ca1b32184c537f877674de540049f3dca5ae4a4a#path:viewer(vue@3.5.45(typescript@5.9.3)):
     dependencies:
       epubjs: 0.3.93
+      pdfjs-dist: 4.10.38
       vue: 3.5.45(typescript@5.9.3)
 
   estree-walker@2.0.2: {}
