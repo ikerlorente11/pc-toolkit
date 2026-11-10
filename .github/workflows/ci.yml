@@ -49,6 +49,17 @@ jobs:
         with:
           workspaces: tools/estanteria/app/src-tauri
       - run: pnpm install --no-frozen-lockfile
+      # PDFium (el motor de PDF de Chrome) para leer los PDF del PC: la versión que espera pdfium-render 0.8 (pdfium_latest = 7543)
+      - name: PDFium
+        shell: bash
+        run: |
+          curl -sSfL -o pdfium.tgz "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7543/pdfium-win-x64.tgz"
+          mkdir -p src-tauri/pdfium pdfium-x
+          tar xzf pdfium.tgz -C pdfium-x
+          cp pdfium-x/bin/pdfium.dll pdfium-x/LICENSE src-tauri/pdfium/
+          rm -rf pdfium.tgz pdfium-x
+      - run: cargo test --lib
+        working-directory: tools/estanteria/app/src-tauri
       # Sin etiqueta solo compila (comprueba que el instalador sale); con etiqueta estanteria-v* publica la release.
       - uses: tauri-apps/tauri-action@v0
         env:

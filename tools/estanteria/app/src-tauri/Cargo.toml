@@ -29,6 +29,10 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 sevenz-rust = "0.6"
 unrar = "0.5"
 imagesize = "0.13"
+# covers made small, PDF pages rendered (PDFium, the PDF engine of Chrome, as a DLL next to the app)
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+pdfium-render = { version = "0.8", default-features = false, features = ["pdfium_latest", "sync"] }
+tauri-plugin-dialog = "2"
 # a second launch (a double click with the app open) hands its file to the window already open
 tauri-plugin-single-instance = "2"
 

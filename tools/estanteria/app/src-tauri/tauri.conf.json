@@ -29,6 +29,10 @@
     "targets": [
       "nsis"
     ],
+    "resources": {
+      "pdfium/pdfium.dll": "pdfium.dll",
+      "pdfium/LICENSE": "pdfium-LICENSE.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -63,6 +67,15 @@
         "name": "Libro EPUB",
         "description": "Libro (La Estantería)",
         "role": "Viewer"
+      },
+      {
+        "ext": [
+          "pdf"
+        ],
+        "name": "PDF",
+        "description": "PDF (La Estantería)",
+        "role": "Viewer",
+        "rank": "Alternate"
       }
     ]
   }

@@ -1,7 +1,7 @@
 <template>
   <div class="es" :class="{ 'es-reading': view.v === 'read' }">
     <template v-if="view.v === 'read' && store">
-      <ReaderView :key="`read${view.id}`" :id="view.id" :start-page="view.page" />
+      <ReaderView :key="`read${view.id}${view.as || ''}`" :id="view.id" :start-page="view.page" :as="view.as" />
     </template>
     <template v-else>
       <aside class="es-side" aria-label="Tu estantería">
@@ -79,10 +79,11 @@ import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { Api, CatalogView, CatalogsView, Cover, DownloadsView, HomeView, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE, createState, queryFromView,
-         viewFromQuery, type Item, type OfflineEntry, type Store, type View } from 'estanteria-viewer'
+import { Api, CatalogView, CatalogsView, Cover, DownloadsView, HomeView, LocalShelf, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE,
+         createState, queryFromView, viewFromQuery, type Item, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
 import { accountKey, desktopBackend } from './lib/offline'
+import { desktopShelf } from './lib/shelf'
 
 /**
  * The desktop shell of La Estantería: the same library and readers as the web, against the
@@ -144,14 +145,18 @@ function keeperFor(): Offline {
   return keeper
 }
 
+// ---- the folders and files of this PC: one shelf for the computer, whatever the account ----
+const shelf = new LocalShelf(desktopShelf(() => connection.url, () => Api.basic(connection.username, token)))
+
 function makeStore(): Store {
   current = new Api(connection.url, () => Api.basic(connection.username, token))
   const keeper = keeperFor()
   keeper.attach(current)
+  keeper.shelf = shelf
   offline.value = keeper
   const covers = new ImageCache(current, 400)
   const pages = new ImageCache(current, 24)
-  const s: Store = { api: current, covers, pages, readingRoot: 'Lectura', state, refresh, go: go as any, back, notify, read, offline: keeper }
+  const s: Store = { api: current, covers, pages, readingRoot: 'Lectura', state, refresh, go: go as any, back, notify, read, offline: keeper, shelf }
   return s
 }
 function read(item: Item) {
@@ -214,32 +219,32 @@ async function disconnect() {
   notify('Olvidado.')
 }
 
-// ---- files of this computer: a double click in the Explorer, a second launch, a file dropped here ----
-const OPENABLE = /\.(cbz|cbr|cb7|zip|rar|7z|epub)$/i
-let waiting: string | null = null
-async function openLocal(path: string) {
-  if (!connected.value || !offline.value) {
-    waiting = path
+// ---- files of this computer: a double click in the Explorer, a second launch, files dropped here.
+// They go on the shelf («Archivos sueltos», or their folder if it is one of the shelf's) and stay. ----
+const OPENABLE = /\.(cbz|cbr|cb7|zip|rar|7z|epub|pdf)$/i
+let waiting: string[] = []
+async function openLocal(paths: string[]) {
+  if (!connected.value || !store.value) {
+    waiting = [...waiting, ...paths]
     notify('Conecta con tu Archivador y el archivo se abrirá después.', true)
     return
   }
-  const name = path.split(/[\\/]/).pop() || path
-  if (!OPENABLE.test(name)) { notify(`${name}: La Estantería abre cbz, cbr, cb7 y epub de este PC.`, true); return }
-  notify(`Abriendo ${name}…`)
+  const good = paths.filter((p) => OPENABLE.test(p))
+  if (!good.length) { notify('La Estantería abre cbz, cbr, cb7, pdf y epub de este PC.', true); return }
   try {
-    const entry = await invoke<OfflineEntry>('local_open', { account: accountKey(connection.username, connection.url), path })
-    offline.value.addLocal(entry)
-    toast.text = ''
-    read(entry.item)
+    const items = await shelf.addFiles(good)
+    await refresh()
+    if (items.length === 1) read(items[0])
+    else { notify(`${items.length} archivos en tu estantería.`); go({ v: 'library', source: String(items[0].source_id) }) }
   } catch (err: any) {
-    notify(`No se pudo abrir ${name}: ${err?.message || err}`, true)
+    notify(`No se pudo abrir: ${err?.message || err}`, true)
   }
 }
-listen<string>('open-file', (e) => openLocal(e.payload))
+listen<string>('open-file', (e) => openLocal([e.payload]))
 getCurrentWebview().onDragDropEvent((e) => {
-  if (e.payload.type === 'drop' && e.payload.paths.length) openLocal(e.payload.paths[0])
+  if (e.payload.type === 'drop' && e.payload.paths.length) openLocal(e.payload.paths)
 })
-watch(connected, (ok) => { if (ok && waiting) { const path = waiting; waiting = null; openLocal(path) } })
+watch(connected, (ok) => { if (ok && waiting.length) { const paths = waiting; waiting = []; openLocal(paths) } })
 
 // without connection, look again every so often (and when Windows says the network is back)
 setInterval(() => { if (connected.value && offline.value && !offline.value.state.online) refresh() }, 30000)
@@ -247,6 +252,7 @@ window.addEventListener('online', () => { if (connected.value) refresh() })
 
 onMounted(async () => {
   try { version.value = await getVersion() } catch (_) { version.value = 'dev' }
+  await shelf.load()
   Object.assign(connection, await loadConnection())
   form.url = connection.url
   form.username = connection.username
@@ -254,6 +260,6 @@ onMounted(async () => {
   await connect()
   if (!connected.value && view.value.v !== 'setup') go({ v: 'setup' }, true)
   const launched = await invoke<string | null>('local_launch_path').catch(() => null)
-  if (launched) openLocal(launched)
+  if (launched) openLocal([launched])
 })
 </script>
