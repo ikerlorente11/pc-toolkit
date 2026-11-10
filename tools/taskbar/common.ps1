@@ -133,12 +133,23 @@ function script:Invoke-ActiveTaskbarProfile([switch]$SkipPosition) {
 
 # Para cuando la barra con ocultación automática deja de aparecer al acercar el puntero:
 # equivale a desactivar y volver a activar "Ocultar automáticamente".
+# Si alguna barra sale por detrás de las ventanas (ver BehindWindows), eso no basta: se reinicia Explorer
+# con la tarea programada, en segundo plano (marca restart-explorer para que Taskbar.ps1 lo haga).
+# Devuelve el texto del aviso.
+$script:TaskbarRestartFlag = Join-Path $script:TaskbarDataDir 'restart-explorer'
 function script:Invoke-TaskbarRefresh {
+    if ([PcToolkit.Taskbar.Native]::BehindWindows -and (Get-ScheduledTask -TaskName 'PcToolkitTaskbar' -ErrorAction SilentlyContinue)) {
+        New-Item -ItemType Directory -Force -Path $script:TaskbarDataDir | Out-Null
+        New-Item -ItemType File -Force -Path $script:TaskbarRestartFlag | Out-Null
+        Start-ScheduledTask -TaskName 'PcToolkitTaskbar'
+        return 'Reiniciando el Explorador para recuperar la barra...'
+    }
     $cfg = Get-TaskbarConfig
     $taskbarProfile = $cfg[(Get-ActiveTaskbarProfileName $cfg)]
     [PcToolkit.Taskbar.Native]::SetAutoHide($false)
     Start-Sleep -Milliseconds 400
     [PcToolkit.Taskbar.Native]::SetAutoHide($taskbarProfile.AutoHide)
+    'Barra de tareas refrescada'
 }
 
 function script:Get-TaskbarProfileLabel([string]$Name) { if ($Name -eq 'Remote') { 'Perfil de Escritorio remoto' } else { 'Perfil normal' } }

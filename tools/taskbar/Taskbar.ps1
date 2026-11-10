@@ -1,18 +1,27 @@
 ﻿# Taskbar.ps1 - Aplica el perfil de la barra de tareas que corresponda (normal o Escritorio remoto).
 # Lo lanza la tarea programada "PcToolkitTaskbar" al iniciar sesión, al conectar por Escritorio remoto,
-# al volver a la consola local y cuando el gestor necesita cambiar la posición (reinicia Explorer).
+# al volver a la consola local y cuando el gestor necesita reiniciar Explorer (cambio de posición, o
+# Refrescar con una barra por detrás de las ventanas: marca data\taskbar\restart-explorer).
 #   -Refresh        refresca la barra (por si se queda escondida)
 #   -AlwaysVisible  deja la barra siempre visible (lo usa disable.ps1)
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 if ($args -contains '-AlwaysVisible') { [PcToolkit.Taskbar.Native]::SetAutoHide($false); return }
-if ($args -contains '-Refresh') { Invoke-TaskbarRefresh; return }
+if ($args -contains '-Refresh') { [void](Invoke-TaskbarRefresh); return }
 
 # Al iniciar sesión, Explorer puede tardar en tener la barra lista
 if (-not [PcToolkit.Taskbar.Native]::TrayReady) {
     for ($i = 0; $i -lt 30 -and -not [PcToolkit.Taskbar.Native]::TrayReady; $i++) { Start-Sleep -Seconds 1 }
     Start-Sleep -Seconds 2
+}
+
+# El botón Refrescar pide reiniciar Explorer cuando alguna barra sale por detrás de las ventanas
+if (Test-Path $script:TaskbarRestartFlag) {
+    Remove-Item $script:TaskbarRestartFlag -Force -ErrorAction SilentlyContinue
+    Restart-Explorer
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  Explorer reiniciado: había una barra por detrás de las ventanas" |
+        Add-Content (Join-Path $script:TaskbarDataDir 'Taskbar.log') -Encoding UTF8
 }
 
 $name = Invoke-ActiveTaskbarProfile

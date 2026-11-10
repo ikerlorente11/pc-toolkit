@@ -90,7 +90,7 @@ $refresh = New-Ui @'
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
       <TextBlock Style="{StaticResource Body}" Text="Refrescar la barra de tareas"/>
-      <TextBlock Style="{StaticResource Caption}" Text="Útil cuando la barra con ocultación automática no aparece al acercar el puntero."/>
+      <TextBlock Style="{StaticResource Caption}" Text="Útil cuando la barra no aparece al acercar el puntero o sale por detrás de las ventanas."/>
     </StackPanel>
     <Button x:Name="Refresh" Grid.Column="1" Style="{StaticResource AccentButton}" Content="Refrescar" VerticalAlignment="Center"/>
   </Grid>
@@ -99,8 +99,7 @@ $refresh = New-Ui @'
 $refresh.FindName('Refresh').Add_Click({
     param($s, $e)
     Invoke-Safe {
-        Invoke-TaskbarRefresh
-        Show-Osd ([string][char]0xE72C) 'Barra de tareas refrescada' 'PC Toolkit'
+        Show-Osd ([string][char]0xE72C) (Invoke-TaskbarRefresh) 'PC Toolkit'
     }
 })
 [void]$panel.Children.Add($refresh)

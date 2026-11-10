@@ -16,11 +16,27 @@ namespace PcToolkit.Taskbar {
 
         [DllImport("shell32.dll")] static extern UIntPtr SHAppBarMessage(uint msg, ref APPBARDATA data);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string cls, string name);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string name);
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hwnd, int index);
         [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);
 
         public static bool TrayReady { get { return FindWindow("Shell_TrayWnd", null) != IntPtr.Zero; } }
+
+        // true si alguna barra (la principal o la de otra pantalla) ha perdido "siempre encima" (WS_EX_TOPMOST):
+        // entonces sale por detrás de las ventanas maximizadas. Le pasa a la de la pantalla secundaria tras
+        // días con Explorer abierto, conectando y desconectando pantallas. Explorer no deja devolvérselo desde fuera.
+        public static bool BehindWindows {
+            get {
+                foreach (string cls in new[] { "Shell_TrayWnd", "Shell_SecondaryTrayWnd" }) {
+                    IntPtr h = IntPtr.Zero;
+                    while ((h = FindWindowEx(IntPtr.Zero, h, cls, null)) != IntPtr.Zero)
+                        if ((GetWindowLong(h, -20) & 0x8) == 0) return true;   // GWL_EXSTYLE & WS_EX_TOPMOST
+                }
+                return false;
+            }
+        }
 
         // true si la sesión actual es de Escritorio Remoto (SM_REMOTESESSION)
         public static bool IsRemote { get { return GetSystemMetrics(0x1000) != 0; } }

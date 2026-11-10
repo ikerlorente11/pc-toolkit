@@ -32,8 +32,7 @@ $row.FindName('Refresh').Add_Click({
     param($s, $e)
     $e.Handled = $true   # que no abra la página de la herramienta
     Invoke-Safe {
-        Invoke-TaskbarRefresh
-        Show-Osd ([string][char]0xE72C) 'Barra de tareas refrescada' 'PC Toolkit'
+        Show-Osd ([string][char]0xE72C) (Invoke-TaskbarRefresh) 'PC Toolkit'
     }
 })
 $row

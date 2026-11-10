@@ -3,4 +3,3 @@
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 Invoke-TaskbarRefresh
-'Barra de tareas refrescada'
