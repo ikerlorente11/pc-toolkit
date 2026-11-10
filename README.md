@@ -269,7 +269,7 @@ Crea `tools/<id>/` con:
 
 | Archivo | Obligatorio | Qué hace |
 |---|---|---|
-| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `summary` (3-4 palabras para la portada), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos), `installNote` (opcional: aviso junto al botón Instalar si no se instala "para el usuario, sin admin") |
+| `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `summary` (3-4 palabras para la portada), `category` (tema con el que se agrupa en la portada: Sonido, Escritorio, Juegos, Apps), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos), `installNote` (opcional: aviso junto al botón Instalar si no se instala "para el usuario, sin admin") |
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`). Si integra un programa de otro fabricante, lo instala con `Install-WingetPackage` (`-Elevated` si necesita admin: Windows pregunta) y cuenta el progreso con `Set-ToolStatus` |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
 | `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
