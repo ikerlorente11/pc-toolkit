@@ -62,7 +62,7 @@
           <LibraryView v-else-if="view.v === 'library'" :q="view.q || ''" :kind="view.kind" :sort="view.sort" :folder="view.folder" :source="view.source" />
           <SeriesView v-else-if="view.v === 'series'" :key="`s${view.name}`" :name="view.name" />
           <ItemView v-else-if="view.v === 'item'" :key="`i${view.id}`" :id="view.id" />
-          <SourcesView v-else-if="view.v === 'sources'" />
+          <SourcesView v-else-if="view.v === 'sources'" :add="view.add" />
           <CatalogsView v-else-if="view.v === 'catalogs'" />
           <DownloadsView v-else-if="view.v === 'downloads'" />
           <CatalogView v-else-if="view.v === 'catalog'" :key="`c${view.kind}`" :kind="view.kind" :path="view.path" :q="view.q" />
