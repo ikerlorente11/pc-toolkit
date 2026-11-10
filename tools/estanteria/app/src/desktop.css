@@ -22,3 +22,5 @@ html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "
 .es-setup p { margin: 0; line-height: 1.5; }
 .es-setup-actions { display: flex; gap: 8px; align-items: center; }
 .es-version { opacity: .7; }
+.es-navcount { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; }
+.es-navcount .es-spin { width: 10px; height: 10px; }

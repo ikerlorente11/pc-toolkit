@@ -1,6 +1,9 @@
 //! La Estantería for the desktop: a Tauri shell around the shared viewer. The Rust side keeps the
-//! user's app token in the operating system's credential store; everything else happens in the
-//! web view against the service of the user's Archivador.
+//! user's app token in the operating system's credential store and the items made available
+//! offline (see offline.rs); everything else happens in the web view against the service of the
+//! user's Archivador.
+
+mod offline;
 
 const SERVICE: &str = "La Estantería";
 
@@ -34,7 +37,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![secret_get, secret_set, secret_delete])
+        .manage(offline::Jobs::default())
+        .register_uri_scheme_protocol("offline", offline::serve)
+        .invoke_handler(tauri::generate_handler![
+            secret_get, secret_set, secret_delete,
+            offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where
+        ])
         .run(tauri::generate_context!())
         .expect("error while running La Estantería");
 }

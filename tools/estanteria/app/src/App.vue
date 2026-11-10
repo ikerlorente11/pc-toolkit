@@ -14,6 +14,11 @@
           <a href="#" :class="{ on: view.v === 'library' }" @click.prevent="go({ v: 'library' })"><span class="es-ni"><i class="es-i es-i-grid" aria-hidden="true"></i></span> Biblioteca</a>
           <a href="#" :class="{ on: view.v === 'catalogs' || view.v === 'catalog' }" @click.prevent="go({ v: 'catalogs' })"><span class="es-ni"><i class="es-i es-i-cloud" aria-hidden="true"></i></span> Catálogos</a>
           <a href="#" :class="{ on: view.v === 'sources' }" @click.prevent="go({ v: 'sources' })"><span class="es-ni"><i class="es-i es-i-server" aria-hidden="true"></i></span> Bibliotecas</a>
+          <a href="#" :class="{ on: view.v === 'downloads' }" @click.prevent="go({ v: 'downloads' })">
+            <span class="es-ni"><i class="es-i es-i-download" aria-hidden="true"></i></span> Descargas
+            <small v-if="offline && jobCount" class="es-muted es-navcount"><span class="es-spin"></span> {{ jobCount }}</small>
+            <small v-else-if="offline && offline.count" class="es-muted es-navcount">{{ offline.count }}</small>
+          </a>
         </nav>
         <div class="es-lib">
           <div class="es-libh">Series <small class="es-muted">{{ state.series.length }}</small></div>
@@ -32,6 +37,12 @@
       </aside>
 
       <main ref="mainEl" class="es-main">
+        <p v-if="offline && !offline.state.online" class="es-offline-banner">
+          <i class="es-i es-i-cloud" aria-hidden="true"></i>
+          <span>Sin conexión con La Estantería: puedes leer lo descargado. Lo que leas se apunta y se envía al volver.</span>
+          <span class="es-grow"></span>
+          <button class="es-btn es-small" @click="refresh()">Reintentar</button>
+        </p>
         <p v-if="state.error" class="es-banner es-banner-error">{{ state.error }} <button class="es-btn es-small" @click="connect()">Reintentar</button></p>
         <section v-if="view.v === 'setup' || !connected" class="es-page">
           <header class="es-page-head"><h1 class="es-h1">Tu Archivador</h1></header>
@@ -53,6 +64,7 @@
           <ItemView v-else-if="view.v === 'item'" :key="`i${view.id}`" :id="view.id" />
           <SourcesView v-else-if="view.v === 'sources'" />
           <CatalogsView v-else-if="view.v === 'catalogs'" />
+          <DownloadsView v-else-if="view.v === 'downloads'" />
           <CatalogView v-else-if="view.v === 'catalog'" :key="`c${view.kind}`" :kind="view.kind" :path="view.path" :q="view.q" />
         </template>
       </main>
@@ -62,11 +74,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, provide, reactive, ref, watch } from 'vue'
+import { computed, onMounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
-import { Api, CatalogView, CatalogsView, Cover, HomeView, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE, createState, queryFromView,
+import { Api, CatalogView, CatalogsView, Cover, DownloadsView, HomeView, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SourcesView, STORE, createState, queryFromView,
          viewFromQuery, type Item, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
+import { accountKey, desktopBackend } from './lib/offline'
 
 /**
  * The desktop shell of La Estantería: the same library and readers as the web, against the
@@ -114,11 +127,28 @@ function notify(text: string, error = false) {
 const api = new Api('', () => '')
 let current: Api = api
 const store = ref<Store | null>(null)
+// ---- reading without connection: one keeper per account (its downloads go on across reconnections) ----
+const keepers = new Map<string, Offline>()
+const offline = shallowRef<Offline | null>(null)
+const jobCount = computed(() => (offline.value ? Object.keys(offline.value.state.jobs).length : 0))
+function keeperFor(): Offline {
+  const account = accountKey(connection.username, connection.url)
+  let keeper = keepers.get(account)
+  if (!keeper) {
+    keeper = new Offline(desktopBackend(account, () => connection.url, () => Api.basic(connection.username, token)))
+    keepers.set(account, keeper)
+  }
+  return keeper
+}
+
 function makeStore(): Store {
   current = new Api(connection.url, () => Api.basic(connection.username, token))
+  const keeper = keeperFor()
+  keeper.attach(current)
+  offline.value = keeper
   const covers = new ImageCache(current, 400)
   const pages = new ImageCache(current, 24)
-  const s: Store = { api: current, covers, pages, readingRoot: 'Lectura', state, refresh, go: go as any, back, notify, read }
+  const s: Store = { api: current, covers, pages, readingRoot: 'Lectura', state, refresh, go: go as any, back, notify, read, offline: keeper }
   return s
 }
 function read(item: Item) {
@@ -131,6 +161,7 @@ async function refresh() {
     state.status = status
     state.series = series
     state.loaded = true
+    state.error = ''
   } catch (err: any) {
     state.error = `No se pudo hablar con La Estantería: ${err?.message || err}`
   }
@@ -139,6 +170,7 @@ async function connect() {
   state.error = ''
   if (!connection.url || !connection.username || !token) { connected.value = false; return }
   const s = makeStore()
+  await offline.value?.load()
   try {
     await current.ensureConnected()
     store.value = s
@@ -178,6 +210,10 @@ async function disconnect() {
   state.series = []
   notify('Olvidado.')
 }
+
+// without connection, look again every so often (and when Windows says the network is back)
+setInterval(() => { if (connected.value && offline.value && !offline.value.state.online) refresh() }, 30000)
+window.addEventListener('online', () => { if (connected.value) refresh() })
 
 onMounted(async () => {
   try { version.value = await getVersion() } catch (_) { version.value = 'dev' }
