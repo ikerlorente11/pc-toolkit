@@ -146,6 +146,28 @@ fn format_of(path: &Path) -> Option<&'static str> {
     }
 }
 
+/// What a comic archive really is (cbz, cbr or cb7), by its first bytes: many a .cbr is a zip
+/// inside (and some .cbz a rar), so the extension only says what the user expects. Anything else,
+/// or a file that cannot be read, is taken as named.
+fn container_of(path: &Path, format: &str) -> String {
+    if !matches!(format, "cbz" | "cbr" | "cb7") {
+        return format.to_string();
+    }
+    let mut head = [0u8; 8];
+    let n = fs::File::open(path).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
+    let head = &head[..n];
+    let real = if head.starts_with(b"Rar!\x1a\x07") {
+        "cbr"
+    } else if head.starts_with(b"PK\x03\x04") {
+        "cbz"
+    } else if head.starts_with(b"7z\xbc\xaf\x27\x1c") {
+        "cb7"
+    } else {
+        format
+    };
+    real.to_string()
+}
+
 fn load_config<R: Runtime>(app: &AppHandle<R>, shelf: &Shelf) -> Result<(), String> {
     let mut guard = shelf.config.lock().unwrap();
     if guard.is_none() {
@@ -577,8 +599,12 @@ fn item_cache<R: Runtime>(app: &AppHandle<R>, id: u64, path: &Path) -> Result<Pa
     Ok(dir)
 }
 
+/// The file of an item and the archive it really is (see `container_of`): what the readers open.
 fn known<R: Runtime>(app: &AppHandle<R>, id: u64) -> Result<(PathBuf, String), String> {
-    app.state::<Shelf>().known.lock().unwrap().get(&id).cloned().ok_or_else(|| "ese archivo no está en la estantería".into())
+    let (path, format) = app.state::<Shelf>().known.lock().unwrap().get(&id).cloned()
+        .ok_or_else(|| "ese archivo no está en la estantería".to_string())?;
+    let container = container_of(&path, &format);
+    Ok((path, container))
 }
 
 /// What the viewer needs before reading: how many pages and their sizes (a cbr or cb7 gets
