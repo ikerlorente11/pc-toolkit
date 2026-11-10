@@ -49,7 +49,8 @@ function script:Get-EstanteriaLatest {
 function script:Install-Estanteria {
     $latest = Get-EstanteriaLatest
     $current = Get-EstanteriaVersion
-    if ($current -and $current -eq $latest.Version) { return $false }
+    # solo hacia arriba: una versión instalada más nueva que la release (una de prueba) se deja como está
+    if ($current -and ([version]$current -ge [version]$latest.Version)) { return $false }
     New-Item -ItemType Directory -Force -Path $script:EstanteriaData | Out-Null
     $setup = Join-Path $script:EstanteriaData $latest.Name
     Invoke-WebRequest $latest.Url -OutFile $setup -UseBasicParsing
