@@ -296,8 +296,25 @@ pub fn shelf_add_file<R: Runtime>(app: AppHandle<R>, shelf: State<'_, Shelf>, pa
 
 #[tauri::command]
 pub fn shelf_remove_file<R: Runtime>(app: AppHandle<R>, shelf: State<'_, Shelf>, id: u64) -> Result<(), String> {
-    with_config(&app, &shelf, |c| c.files.retain(|f| id_of(Path::new(f)) != id))?;
+    let mut gone: Vec<String> = Vec::new();
+    with_config(&app, &shelf, |c| c.files.retain(|f| if id_of(Path::new(f)) == id { gone.push(f.clone()); false } else { true }))?;
     let _ = fs::remove_dir_all(cache_dir(&app)?.join(id.to_string()));
+    // one downloaded from a catalog (it lives in the app's downloads folder) is deleted too, and the folder of
+    // its series with its last file; one opened from anywhere else stays where it is
+    if let Ok(downloads) = crate::net::downloads_dir(&app).and_then(|d| d.canonicalize().map_err(|e| e.to_string())) {
+        for f in gone {
+            let Ok(path) = Path::new(&f).canonicalize() else { continue };
+            if !path.starts_with(&downloads) || path == downloads {
+                continue;
+            }
+            let _ = fs::remove_file(&path);
+            if let Some(dir) = path.parent() {
+                if dir != downloads && fs::read_dir(dir).map(|mut d| d.next().is_none()).unwrap_or(false) {
+                    let _ = fs::remove_dir(dir);
+                }
+            }
+        }
+    }
     Ok(())
 }
 

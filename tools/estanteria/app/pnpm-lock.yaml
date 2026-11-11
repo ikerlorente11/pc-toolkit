@@ -24,8 +24,8 @@ importers:
         specifier: ^2.2.0
         version: 2.5.0
       estanteria-viewer:
-        specifier: github:ikerlorente11/estanteria#94112e29a892539f35cb875ee5c5e337542c7cd1&path:viewer
-        version: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/94112e29a892539f35cb875ee5c5e337542c7cd1#path:viewer(vue@3.5.45(typescript@5.9.3))
+        specifier: github:ikerlorente11/estanteria#a881ae359dcb19f10df1deee87b42364ff58a3ab&path:viewer
+        version: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/a881ae359dcb19f10df1deee87b42364ff58a3ab#path:viewer(vue@3.5.45(typescript@5.9.3))
       pdfjs-dist:
         specifier: 4.10.38
         version: 4.10.38
@@ -559,8 +559,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/94112e29a892539f35cb875ee5c5e337542c7cd1#path:viewer:
-    resolution: {path: viewer, tarball: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/94112e29a892539f35cb875ee5c5e337542c7cd1}
+  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/a881ae359dcb19f10df1deee87b42364ff58a3ab#path:viewer:
+    resolution: {path: viewer, tarball: https://codeload.github.com/ikerlorente11/estanteria/tar.gz/a881ae359dcb19f10df1deee87b42364ff58a3ab}
     version: 0.3.0
     peerDependencies:
       vue: ^3.4.0
@@ -1051,7 +1051,7 @@ snapshots:
       '@esbuild/win32-ia32': 0.25.12
       '@esbuild/win32-x64': 0.25.12
 
-  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/94112e29a892539f35cb875ee5c5e337542c7cd1#path:viewer(vue@3.5.45(typescript@5.9.3)):
+  estanteria-viewer@https://codeload.github.com/ikerlorente11/estanteria/tar.gz/a881ae359dcb19f10df1deee87b42364ff58a3ab#path:viewer(vue@3.5.45(typescript@5.9.3)):
     dependencies:
       pdfjs-dist: 4.10.38
       vue: 3.5.45(typescript@5.9.3)

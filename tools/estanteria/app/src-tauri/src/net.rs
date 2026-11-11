@@ -38,7 +38,7 @@ pub fn net_user_agent() -> String {
 
 /// The folder of catalog downloads: `<Downloads>\La Estantería`, or the app's data folder
 /// (`Catálogos`) on a system without a Downloads folder.
-fn downloads_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+pub fn downloads_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     match app.path().download_dir() {
         Ok(dir) => Ok(dir.join("La Estantería")),
         Err(_) => Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("Catálogos")),
