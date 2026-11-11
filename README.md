@@ -21,7 +21,7 @@ solo Everything pide permisos de administrador, una vez, para su servicio de ind
 | **Everything** | Con **Ctrl + Alt + F** abre una ventana para buscar cualquier archivo o carpeta del PC por su nombre al instante, con el índice de [Everything](https://www.voidtools.com) (voidtools). Abre el resultado, su carpeta o copia su ruta sin tocar el ratón. |
 | **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Modo juegos** | Los emuladores (KytyPS5...) van mucho más lentos con el hipervisor de Windows (Hyper-V/VBS), que WSL2 y Docker necesitan. Crea una entrada de arranque sin hipervisor ni VBS: se cambia de modo desde su tarjeta o desde el aviso que sale al abrir un emulador (y al abrir Docker o WSL en modo juegos, ofrece volver). El modo se mantiene en cada reinicio hasta que lo cambies. Pide administrador una sola vez, al instalarla. |
-| **La Estantería** | Lector de cómics, manga y libros (cbz, cbr, pdf, epub…) de la carpeta Lectura de tu [Archivador](https://github.com/ikerlorente11/estanteria), con la misma biblioteca, progreso, notas y marcadores que la web y el móvil. **Ctrl + Alt + L** la abre; los cómics y epub del Explorador se abren con ella. |
+| **La Estantería** | Lector de cómics, manga y libros (cbz, cbr, pdf, epub, mobi, fb2…) de la carpeta Lectura de tu [Archivador](https://github.com/ikerlorente11/estanteria), con la misma biblioteca, progreso, notas y marcadores que la web y el móvil. **Ctrl + Alt + L** la abre; los cómics y libros del Explorador se abren con ella. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **LocalSend** | Pasa archivos entre el PC, el móvil y otros ordenadores de la red local, sin cuenta ni Internet, con [LocalSend](https://localsend.org). Lo deja en la bandeja para recibir y lo añade al menú **Enviar a** del Explorador. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
@@ -133,7 +133,11 @@ En su página de ajustes:
 - App de escritorio propia (`tools/estanteria/app`, [Tauri 2](https://tauri.app): WebView2 + Rust) que reutiliza el visor
   compartido del repo [estanteria](https://github.com/ikerlorente11/estanteria) (`viewer/`): inicio con seguir leyendo,
   novedades y series; biblioteca con búsqueda; visor de cómic (una o dos páginas, tira vertical, zoom, sentido manga) y
-  de EPUB (letra, interlineado, márgenes, temas); notas, subrayados y marcadores, todo guardado en El Archivador.
+  de libros (letra, interlineado, márgenes, temas); notas, subrayados y marcadores, todo guardado en El Archivador.
+- También lee archivos de este PC (carpetas añadidas como bibliotecas, o abiertos con doble clic o arrastrados):
+  cómics cbz, cbr, cb7 y cbt (páginas jpg, png, webp, gif, avif, bmp y jxl; el jxl se pasa a jpg), pdf, djvu/djv
+  y libros epub, mobi/azw/azw3, fb2, fbz (o `.fb2.zip`) y txt, con su portada. El instalador asocia cbz, cbr, cb7, cbt,
+  djvu, djv, epub, mobi, azw, azw3, fb2 y fbz (pdf como alternativa; txt no, para no quitársela al Bloc de notas).
 - Al abrirla por primera vez pide la dirección del servicio, el usuario y una **contraseña de aplicación** de
   El Archivador; la contraseña va al almacén de credenciales de Windows.
 - El CI compila el instalador en Windows cuando cambia `tools/estanteria/app` y, con una etiqueta `estanteria-v<versión>`,

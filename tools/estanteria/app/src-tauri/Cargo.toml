@@ -24,17 +24,35 @@ serde_json = "1"
 keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
 # downloads for reading offline (blocking, in their own threads; rustls, no OpenSSL to ship)
 ureq = { version = "2.12", default-features = false, features = ["tls"] }
-# comics of this computer (a double click in the Explorer): zip, 7z and rar, unpacked in Rust
+# comics of this computer (a double click in the Explorer): zip, 7z, rar and tar, unpacked in Rust
 zip = { version = "2", default-features = false, features = ["deflate"] }
 sevenz-rust = "0.6"
 unrar = "0.5"
+tar = { version = "0.4", default-features = false }
+# JPEG XL pages made JPEG (WebView2 does not show them); pure Rust
+jxl-oxide = { version = "0.12", features = ["image"] }
+# the covers of FB2 books: the XML read as it comes (they can be big) and the picture in base64
+quick-xml = "0.42"
+base64 = "0.22"
 imagesize = "0.13"
 # covers made small, PDF pages rendered (PDFium, the PDF engine of Chrome, as a DLL next to the app)
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 pdfium-render = { version = "0.8", default-features = false, features = ["pdfium_latest", "sync"] }
+# the cover of a DjVu (page 1 rendered; the viewer renders the pages itself with the same project's
+# WebAssembly build); pure Rust, MIT, decoding only
+djvu-rs = { version = "=0.43.0", default-features = false, features = ["std"] }
 tauri-plugin-dialog = "2"
 # a second launch (a double click with the app open) hands its file to the window already open
 tauri-plugin-single-instance = "2"
+# the viewer's network (OPDS catalogs, MangaDex, Komga, Kavita…): requests made by Rust, so no CORS;
+# unsafe-headers lets the page set its own User-Agent and leave out the web view's Origin, gzip answers
+# come decompressed (net.rs, src/lib/net.ts)
+tauri-plugin-http = { version = "2.9", features = ["unsafe-headers", "gzip"] }
+
+# the app's lock: Windows Hello (UserConsentVerifier) asked over the app's window (lock.rs); the same
+# version Tauri already builds with
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Foundation", "Security_Credentials_UI", "Win32_Foundation", "Win32_System_WinRT"] }
 
 [profile.release]
 codegen-units = 1

@@ -1,9 +1,12 @@
 //! La Estantería for the desktop: a Tauri shell around the shared viewer. The Rust side keeps the
 //! user's app token in the operating system's credential store and the items made available
-//! offline (see offline.rs); everything else happens in the web view against the service of the
-//! user's Archivador. Comics and EPUBs of this computer open too (see local.rs).
+//! offline (see offline.rs), and asks for Windows Hello when the app is locked (see lock.rs);
+//! everything else happens in the web view against the service of the user's Archivador. Comics and
+//! books of this computer open too (see local.rs).
 
 mod local;
+mod lock;
+mod net;
 mod offline;
 
 use tauri::Emitter;
@@ -47,6 +50,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
         .manage(offline::Jobs::default())
         .manage(local::Shelf::default())
         .manage(local::Launch(std::sync::Mutex::new(local::file_argument(std::env::args()))))
@@ -57,7 +61,9 @@ pub fn run() {
             offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where,
             local::local_launch_path, local::shelf_config, local::shelf_add_root, local::shelf_remove_root, local::shelf_rename_root,
             local::shelf_add_file, local::shelf_remove_file, local::shelf_scan, local::shelf_prepare, local::shelf_set_cache_limit,
-            local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload
+            local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload,
+            net::net_user_agent, net::net_download, net::net_save, net::net_save_as, net::net_downloads_dir,
+            lock::lock_available, lock::lock_unlock
         ])
         .run(tauri::generate_context!())
         .expect("error while running La Estantería");

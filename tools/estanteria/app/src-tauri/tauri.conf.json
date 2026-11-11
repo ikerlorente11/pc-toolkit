@@ -54,7 +54,8 @@
         "ext": [
           "cbz",
           "cbr",
-          "cb7"
+          "cb7",
+          "cbt"
         ],
         "name": "Cómic",
         "description": "Cómic (La Estantería)",
@@ -66,6 +67,27 @@
         ],
         "name": "Libro EPUB",
         "description": "Libro (La Estantería)",
+        "role": "Viewer"
+      },
+      {
+        "ext": [
+          "mobi",
+          "azw",
+          "azw3",
+          "fb2",
+          "fbz"
+        ],
+        "name": "Libro electrónico",
+        "description": "Libro (La Estantería)",
+        "role": "Viewer"
+      },
+      {
+        "ext": [
+          "djvu",
+          "djv"
+        ],
+        "name": "Documento escaneado",
+        "description": "Documento escaneado (La Estantería)",
         "role": "Viewer"
       },
       {

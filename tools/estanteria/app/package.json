@@ -14,9 +14,10 @@
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-http": "^2.9.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-store": "^2.2.0",
-    "estanteria-viewer": "github:ikerlorente11/estanteria#ca1b32184c537f877674de540049f3dca5ae4a4a&path:viewer",
+    "estanteria-viewer": "github:ikerlorente11/estanteria#94112e29a892539f35cb875ee5c5e337542c7cd1&path:viewer",
     "pdfjs-dist": "4.10.38",
     "vue": "^3.5.13"
   },

@@ -1,7 +1,8 @@
 //! Reading without connection. An item made available offline is a folder of the app's local data
 //! (`offline/<account>/<item id>/`): its pages as the service already rendered them (`p/<n>.jpg`…),
-//! or the file itself for a book (`file.epub`), its cover, and `item.json` (what the service said of
-//! it), written last, so a folder without it is a download still going or cut short (it resumes).
+//! or the file itself for a book (`file.epub`, `file.mobi`, `file.fb2`…), its cover, and `item.json`
+//! (what the service said of it), written last, so a folder without it is a download still going or
+//! cut short (it resumes).
 //! The web view reads them through the `offline` protocol (`http://offline.localhost/<account>/<id>/p/3`
 //! on Windows), so the viewer fetches a stored page like any other image, without credentials.
 
@@ -82,7 +83,12 @@ fn extension(mime: &str) -> &'static str {
         "image/gif" => "gif",
         "image/avif" => "avif",
         "application/epub+zip" => "epub",
+        "application/x-mobipocket-ebook" | "application/vnd.amazon.ebook" => "mobi",
+        "application/x-fictionbook+xml" => "fb2",
+        "application/x-zip-compressed-fb2" => "fbz",
+        "text/plain" => "txt",
         "application/pdf" => "pdf",
+        "image/vnd.djvu" | "image/x-djvu" => "djvu",
         _ => "bin",
     }
 }
@@ -95,7 +101,12 @@ fn mime_of(path: &Path) -> &'static str {
         "gif" => "image/gif",
         "avif" => "image/avif",
         "epub" => "application/epub+zip",
+        "mobi" => "application/x-mobipocket-ebook",
+        "fb2" => "application/x-fictionbook+xml",
+        "fbz" => "application/x-zip-compressed-fb2",
+        "txt" => "text/plain",
         "pdf" => "application/pdf",
+        "djvu" => "image/vnd.djvu",
         "json" => "application/json",
         _ => "application/octet-stream",
     }

@@ -3,11 +3,12 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
-import type { LocalFile, LocalRoot, Prepared, ShelfBackend, ShelfConfig, UploadDone } from 'estanteria-viewer'
+import { t, type LocalFile, type LocalRoot, type Prepared, type ShelfBackend, type ShelfConfig, type UploadDone } from 'estanteria-viewer'
 
 /** What the protocol is reached at from the web view (Windows: http://<scheme>.localhost). */
 const BASE = navigator.userAgent.includes('Windows') ? 'http://shelf.localhost' : 'shelf://localhost'
-const EXTENSIONS = ['cbz', 'cbr', 'cb7', 'zip', 'rar', '7z', 'epub', 'pdf']
+/** what the file chooser offers (as local.rs's format_of; a .fb2.zip is among the zips) */
+const EXTENSIONS = ['cbz', 'cbr', 'cb7', 'cbt', 'zip', 'rar', '7z', 'tar', 'pdf', 'djvu', 'djv', 'epub', 'mobi', 'azw', 'azw3', 'prc', 'fb2', 'fbz', 'txt']
 
 function list(picked: string | string[] | null): string[] {
   return picked === null ? [] : Array.isArray(picked) ? picked : [picked]
@@ -18,8 +19,8 @@ export function desktopShelf(service: () => string, authorization: () => string)
   return {
     config: () => invoke<ShelfConfig>('shelf_config'),
     scan: () => invoke<LocalFile[]>('shelf_scan'),
-    pickFolders: async () => list(await open({ directory: true, multiple: true, title: 'Carpetas con cómics y libros' })),
-    pickFiles: async () => list(await open({ multiple: true, title: 'Cómics y libros', filters: [{ name: 'Cómics y libros', extensions: EXTENSIONS }] })),
+    pickFolders: async () => list(await open({ directory: true, multiple: true, title: t('Carpetas con cómics y libros') })),
+    pickFiles: async () => list(await open({ multiple: true, title: t('Cómics y libros'), filters: [{ name: t('Cómics y libros'), extensions: EXTENSIONS }] })),
     addRoot: (path) => invoke<LocalRoot>('shelf_add_root', { path }),
     removeRoot: (id) => invoke('shelf_remove_root', { id }),
     renameRoot: (id, name) => invoke('shelf_rename_root', { id, name }),
