@@ -8,5 +8,6 @@
   "installNote": "Si falta Everything, se instala con winget y Windows pedirá permisos de administrador una vez.",
   "task": "PcToolkitEverything",
   "log": "Everything.log",
+  "updates": true,
   "hotkey": { "keys": "Ctrl+Alt+F", "script": "hotkey.ps1", "description": "Abre o cierra la ventana de búsqueda" }
 }

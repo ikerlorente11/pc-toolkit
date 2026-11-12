@@ -1,5 +1,6 @@
 ﻿# common.ps1 - Dónde está la app La Estantería, su versión y cómo descargarla. Lo cargan con "." install.ps1,
-# disable.ps1, hotkey.ps1 y, dentro del gestor, home.ps1. Funciones "script:" para que sigan vivas en los botones.
+# update.ps1, disable.ps1, hotkey.ps1 y, dentro del gestor, home.ps1. Funciones "script:" para que sigan vivas
+# en los botones.
 #
 # La app es la de tools\estanteria\app (Tauri): el CI de PC Toolkit la compila en Windows y publica su instalador
 # NSIS en las releases del repo con etiqueta "estanteria-v<versión>". Se instala para el usuario actual, en
@@ -45,16 +46,22 @@ function script:Get-EstanteriaLatest {
     [pscustomobject]@{ Version = $release.tag_name -replace '^estanteria-v', ''; Url = $asset.browser_download_url; Name = $asset.name }
 }
 
-# Descarga e instala (o actualiza) la app en silencio, para el usuario actual
-function script:Install-Estanteria {
+# Descarga e instala (o actualiza) la app en silencio, para el usuario actual. Si está abierta la cierra,
+# salvo con -KeepOpen (actualización automática o reinstalación de la herramienta): entonces no la toca y falla.
+function script:Install-Estanteria([switch]$KeepOpen) {
     $latest = Get-EstanteriaLatest
     $current = Get-EstanteriaVersion
     # solo hacia arriba: una versión instalada más nueva que la release (una de prueba) se deja como está
     if ($current -and ([version]$current -ge [version]$latest.Version)) { return $false }
+    if ($KeepOpen -and (Test-EstanteriaRunning)) { throw 'La Estantería está abierta: se actualizará cuando la cierres.' }
     New-Item -ItemType Directory -Force -Path $script:EstanteriaData | Out-Null
     $setup = Join-Path $script:EstanteriaData $latest.Name
     Invoke-WebRequest $latest.Url -OutFile $setup -UseBasicParsing
-    if (Test-EstanteriaRunning) { Get-Process la-estanteria -ErrorAction SilentlyContinue | Stop-Process -Force }
+    if (Test-EstanteriaRunning) {
+        # se ha abierto mientras se descargaba
+        if ($KeepOpen) { Remove-Item $setup -ErrorAction SilentlyContinue; throw 'La Estantería está abierta: se actualizará cuando la cierres.' }
+        Get-Process la-estanteria -ErrorAction SilentlyContinue | Stop-Process -Force
+    }
     $p = Start-Process $setup -ArgumentList '/S', '/currentuser' -PassThru -Wait
     Remove-Item $setup -ErrorAction SilentlyContinue
     if ($p.ExitCode -ne 0) { throw "El instalador de La Estantería terminó con el código $($p.ExitCode)." }

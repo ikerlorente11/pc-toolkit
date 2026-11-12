@@ -8,6 +8,13 @@
 #   home.ps1       bloque dentro de su tarjeta en la portada del gestor (opcional)
 #   disable.ps1    deja el sistema como estaba al desactivarla (opcional)
 #   uninstall.ps1  limpieza extra al desinstalarla, antes de borrar su tarea y sus datos (opcional)
+#   update.ps1     actualizaciones de la app que instala (opcional; con "updates": true en tool.json).
+#                  Recibe -Action:
+#                    info     -> @{ Installed = '0.5.0' o $null; InUse = <abierta: actualizar obligaria a
+#                                cerrarla>; Elevated = <actualizar pide permisos de administrador> } (local, rapido)
+#                    latest   -> ultima version publicada (consulta la red)
+#                    update   -> la actualiza y devuelve la version instalada. Con -Auto nunca cierra la app
+#                                abierta (lanza un error) y no pide permisos de administrador.
 # Estado: sin tarea = no instalada; tarea deshabilitada = desactivada; si no, activa.
 
 $ErrorActionPreference = 'Stop'
@@ -27,14 +34,37 @@ function Get-ToolkitRemoteVersion {
     (Invoke-RestMethod "$RepoRaw/VERSION" -UseBasicParsing).Trim()
 }
 
-# Lanza el instalador de GitHub en modo -Update, sin ventana (al terminar vuelve a abrir el gestor)
-function Start-ToolkitUpdate {
+# Lanza el instalador de GitHub en modo -Update, sin ventana (al terminar vuelve a abrir el gestor).
+# -NoShow: el gestor vuelve solo a la bandeja, sin abrir el panel (actualizacion automatica). Solo se
+# pasa si el install.ps1 descargado ya lo admite.
+function Start-ToolkitUpdate([switch]$NoShow) {
     $log = Join-Path $Root 'update.log'
+    $quiet = if ($NoShow) { '$true' } else { '$false' }
     $cmd = "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; " +
-           "try { & ([scriptblock]::Create((Invoke-RestMethod '$RepoRaw/install.ps1' -UseBasicParsing))) -Update *> '$log' } " +
+           "try { `$s = Invoke-RestMethod '$RepoRaw/install.ps1' -UseBasicParsing; `$a = @{ Update = `$true }; " +
+           "if ($quiet -and `$s -match 'switch\]\`$NoShow') { `$a.NoShow = `$true }; " +
+           "& ([scriptblock]::Create(`$s)) @a *> '$log' } " +
            "catch { `$_ | Out-File '$log' -Append }"
     Start-Process powershell.exe -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $cmd
 }
+
+# --- Actualizaciones de las apps de las herramientas (update.ps1, ver arriba) ---
+
+# "1.18.2+64", "v0.5.1" o "1.4.1.1032" -> [version] (o $null si no se entiende)
+function ConvertTo-AppVersion([string]$Text) {
+    if ($Text -match '(\d+(\.\d+){1,3})') { [version]$Matches[1] }
+}
+
+# $true si $Latest es mas nueva que $Installed (si falta alguna de las dos, $false)
+function Test-NewerVersion([string]$Latest, [string]$Installed) {
+    $l = ConvertTo-AppVersion $Latest
+    $i = ConvertTo-AppVersion $Installed
+    [bool]($l -and $i -and $l -gt $i)
+}
+
+function Get-ToolAppInfo($Tool)   { & (Join-Path $Tool.Dir 'update.ps1') -Action info }
+function Get-ToolAppLatest($Tool) { [string](& (Join-Path $Tool.Dir 'update.ps1') -Action latest) }
+function Update-ToolApp($Tool, [switch]$Auto) { [string](@(& (Join-Path $Tool.Dir 'update.ps1') -Action update -Auto:$Auto)[-1]) }
 
 function Get-ToolDataDir([string]$Id) {
     $dir = Join-Path $Root "data\$Id"
@@ -51,6 +81,7 @@ function Get-Tools {
                 Dir          = $_.FullName
                 HasSettings  = Test-Path (Join-Path $_.FullName 'settings.ps1')
                 HasHome      = Test-Path (Join-Path $_.FullName 'home.ps1')
+                HasUpdates   = [bool]$tool.updates -and (Test-Path (Join-Path $_.FullName 'update.ps1'))
             }
             $tool
         }
@@ -68,10 +99,13 @@ function Set-ToolStatus([string]$Text) {
 
 # Instala un programa de otro fabricante con winget. -Elevated: lo lanza como administrador, asi que
 # Windows muestra el aviso de permisos (UAC) y el usuario decide; si lo rechaza, se cancela.
-function Install-WingetPackage([string]$Id, [string[]]$Arguments = @(), [switch]$Elevated) {
+# -Upgrade: actualiza el que ya esta instalado ("winget upgrade"); si winget aun no tiene una version
+# nueva, no hace nada (quien lo llama compara la version antes y despues).
+function Install-WingetPackage([string]$Id, [string[]]$Arguments = @(), [switch]$Elevated, [switch]$Upgrade) {
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
     if (-not $winget) { throw 'Falta winget (el Instalador de aplicacion de Microsoft Store). Instalalo y vuelve a intentarlo.' }
-    $argv = @('install', '--id', $Id, '--exact', '--source', 'winget', '--silent', '--disable-interactivity',
+    $verb = if ($Upgrade) { 'upgrade' } else { 'install' }
+    $argv = @($verb, '--id', $Id, '--exact', '--source', 'winget', '--silent', '--disable-interactivity',
               '--accept-package-agreements', '--accept-source-agreements') + $Arguments
     if ($Elevated) {
         try { $p = Start-Process $winget.Source -ArgumentList $argv -Verb RunAs -WindowStyle Hidden -Wait -PassThru }
@@ -103,7 +137,9 @@ function Get-ToolState($Tool) {
 
 # Ejecuta install/uninstall/enable/disable en otro proceso para no bloquear el gestor.
 # Devuelve el proceso y el archivo donde va escribiendo el progreso.
-function Start-ToolAction($Tool, [ValidateSet('install', 'uninstall', 'enable', 'disable')][string]$Action) {
+# update: actualiza la app de la herramienta (update.ps1); autoupdate: lo mismo sin cerrar la app ni pedir
+# permisos de administrador (si esta abierta, sale con el codigo 2 para reintentarlo mas tarde).
+function Start-ToolAction($Tool, [ValidateSet('install', 'uninstall', 'enable', 'disable', 'update', 'autoupdate')][string]$Action) {
     $status = Join-Path $env:TEMP "pctoolkit-$($Tool.id)-$Action-$([guid]::NewGuid().ToString('N')).txt"
     $psi = New-Object Diagnostics.ProcessStartInfo 'powershell.exe'
     $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'tool-action.ps1')`" " +

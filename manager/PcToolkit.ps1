@@ -352,11 +352,14 @@ function Update-Busy {
         $b = $busy[$id]
         if ($b.Process.HasExited) {
             $text = Get-BusyText $id
-            if ($b.Process.ExitCode -ne 0) { $errors[$id] = $text -replace '^ERROR:\s*', '' }
+            $code = $b.Process.ExitCode
+            $isUpdate = $b.Action -in 'update', 'autoupdate'
+            if ($code -ne 0 -and -not $isUpdate) { $errors[$id] = $text -replace '^ERROR:\s*', '' }
             Remove-Item $b.StatusFile -ErrorAction SilentlyContinue
             $busy.Remove($id)
             $changed = $true
             Update-Hotkeys
+            if ($isUpdate) { Complete-AppUpdate $id $b.Action $code $text }
         }
     }
     $changed
@@ -401,12 +404,12 @@ function Get-HomeSignature {
     $cmds = if ($tools | Where-Object process) {
         @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -Property CommandLine | ForEach-Object CommandLine)
     }
-    ($tools | ForEach-Object {
+    (($tools | ForEach-Object {
         $busyText = if ($busy.ContainsKey($_.id)) { Get-BusyText $_.id }
         $own = if ($script:HomeSignatures.ContainsKey($_.id)) { & $script:HomeSignatures[$_.id] }
         $running = if ($_.process) { $p = $_.process; [bool]($cmds | Where-Object { $_ -match $p }) }
         "$($_.id)=$(Get-ToolState $_)|$busyText|$($errors[$_.id])|$running|$own"
-    }) -join ';'
+    }) -join ';') + "|upd=$(Get-UpdatesSignature)"
 }
 
 # Firma de la página de una herramienta: su estado + lo que diga su settings.ps1
@@ -414,20 +417,25 @@ function Get-ToolPageSignature {
     $t = $tools | Where-Object id -eq $script:page.Substring(5)
     $busyText = if ($busy.ContainsKey($t.id)) { Get-BusyText $t.id }
     $own = if ($script:settingsSignature) { & $script:settingsSignature }
-    "$(Get-ToolState $t)|$busyText|$($errors[$t.id])|$(if ($t.process) { [bool](Get-ToolProcess $t) })|$own"
+    $upd = if ($t.HasUpdates) { Get-UpdatesSignature $t.id }
+    "$(Get-ToolState $t)|$busyText|$($errors[$t.id])|$(if ($t.process) { [bool](Get-ToolProcess $t) })|$own|$upd"
 }
 
-# Preferencias de la portada (vista lista/cuadrícula, grupos plegados y orden), en data\manager.json
+# Preferencias del gestor en data\manager.json: las de la portada (vista lista/cuadrícula, grupos plegados y
+# orden), «Actualizar automáticamente» de PC Toolkit ('pctoolkit') y de cada herramienta con app (id -> bool)
+# y la última versión de PC Toolkit que se abrió (para avisar de que se ha actualizado)
 $PrefsFile = Join-Path (Get-ToolkitRoot) 'data\manager.json'
 
 function Get-HomePrefs {
-    $p = @{ View = 'list'; Collapsed = @{}; Order = @() }
+    $p = @{ View = 'list'; Collapsed = @{}; Order = @(); AutoUpdate = @{}; LastVersion = '' }
     if (Test-Path $PrefsFile) {
         try {
             $j = Get-Content $PrefsFile -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($j.View -in 'list', 'grid') { $p.View = $j.View }
             if ($j.Collapsed) { foreach ($c in $j.Collapsed.PSObject.Properties) { $p.Collapsed[$c.Name] = [bool]$c.Value } }
             if ($j.Order) { $p.Order = @($j.Order | ForEach-Object { [string]$_ }) }
+            if ($j.AutoUpdate) { foreach ($c in $j.AutoUpdate.PSObject.Properties) { $p.AutoUpdate[$c.Name] = [bool]$c.Value } }
+            if ($j.LastVersion) { $p.LastVersion = [string]$j.LastVersion }
         } catch {}
     }
     $p
@@ -574,6 +582,7 @@ function New-InstalledCard($Tool, [string]$State) {
       <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
         <TextBlock x:Name="Name" Style="{StaticResource Title}"/>
         <TextBlock x:Name="Status" Style="{StaticResource Caption}"/>
+        <TextBlock x:Name="UpdateNote" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Visibility="Collapsed"/>
       </StackPanel>
       <CheckBox x:Name="Toggle" Grid.Column="2" Style="{StaticResource Toggle}"/>
       <TextBlock Grid.Column="3" Style="{StaticResource Icon}" Text="&#xE76C;" FontSize="12" Margin="14,0,0,0" Foreground="{StaticResource SubBrush}"/>
@@ -587,6 +596,7 @@ function New-InstalledCard($Tool, [string]$State) {
     $status = Get-StatusText $Tool $State
     $card.FindName('Status').Text = $status[0]
     $card.FindName('Status').Foreground = $app.Resources[$status[1]]
+    Set-UpdateNote $card.FindName('UpdateNote') $Tool
     Connect-ToolToggle $card.FindName('Toggle') $Tool $State
     if ($busy.ContainsKey($Tool.id)) { $card.FindName('Extra').Content = New-ProgressBar }
     else { $card.FindName('Extra').Content = Get-ToolHomeBlock $Tool }
@@ -632,6 +642,8 @@ function New-InstalledTile($Tool, [string]$State) {
     </Grid>
     <TextBlock x:Name="Name" Style="{StaticResource Title}" Margin="0,12,0,0"/>
     <TextBlock x:Name="Status" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+    <TextBlock x:Name="UpdateNote" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Visibility="Collapsed"
+               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
     <ContentControl x:Name="Extra" Focusable="False"/>
   </StackPanel>
 </Button>
@@ -641,6 +653,7 @@ function New-InstalledTile($Tool, [string]$State) {
     $status = Get-StatusText $Tool $State
     $tile.FindName('Status').Text = $status[0] -replace ' · en marcha$', ''   # en el mosaico, corto
     $tile.FindName('Status').Foreground = $app.Resources[$status[1]]
+    Set-UpdateNote $tile.FindName('UpdateNote') $Tool -Short
     Connect-ToolToggle $tile.FindName('Toggle') $Tool $State
     if ($busy.ContainsKey($Tool.id)) { $tile.FindName('Extra').Content = New-ProgressBar }
     else {
@@ -680,6 +693,8 @@ function Show-Home {
     $script:PageSignature = { Get-HomeSignature }
     $grid = $script:prefs.View -eq 'grid'
     $panel = New-Ui '<StackPanel/>'
+    $toolkitCard = New-ToolkitUpdateCard   # solo si hay versión nueva de PC Toolkit
+    if ($toolkitCard) { [void]$panel.Children.Add($toolkitCard) }
     $states = @{}
     foreach ($t in $tools) { $states[$t.id] = Get-ToolState $t }
     # Las instaladas, por temas ("category" de tool.json) cuando hay más de uno; cada grupo se pliega
@@ -779,6 +794,7 @@ function Show-ToolPage([string]$Id) {
         foreach ($el in @($settings)) { if ($el -is [Windows.UIElement]) { [void]$panel.Children.Add($el) } }
     }
     if ($t.hotkey -and $state -ne 'NotInstalled') { [void]$panel.Children.Add((New-HotkeySection $t)) }
+    if ($t.HasUpdates) { [void]$panel.Children.Add((New-UpdateSection $t)) }
     $script:settingsSignature = $script:PageSignature
     $script:PageSignature = { Get-ToolPageSignature }
     $script:lastSignature = Get-ToolPageSignature
@@ -869,6 +885,7 @@ function Show-OrderPage {
 }
 
 function Show-SettingsPage {
+    $first = $script:page -ne 'settings'
     $script:page = 'settings'
     $script:PageSignature = $null
     $panel = New-Ui '<StackPanel/>'
@@ -891,23 +908,13 @@ function Show-SettingsPage {
     $orderRow.Add_Click({ Show-OrderPage })
     [void]$panel.Children.Add($orderRow)
 
-    [void]$panel.Children.Add((New-SectionHeader 'Actualizaciones'))
-    $card = New-Ui @'
-<Border Style="{StaticResource Card}">
-  <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <StackPanel VerticalAlignment="Center">
-      <TextBlock x:Name="T" Style="{StaticResource Body}"/>
-      <TextBlock x:Name="D" Style="{StaticResource Caption}" Text="Las actualizaciones se descargan desde GitHub."/>
-    </StackPanel>
-    <Button x:Name="Check" Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Buscar"/>
-  </Grid>
-</Border>
-'@
-    $card.FindName('T').Text = "Versión $(Get-ToolkitVersion)"
-    $script:updateCard = $card
-    $card.FindName('Check').Add_Click({ param($s, $e) Start-UpdateCheck $s })
-    [void]$panel.Children.Add($card)
+    $apps = @($tools | Where-Object HasUpdates | ForEach-Object name) -join ', '
+    [void]$panel.Children.Add((New-SectionHeader 'Actualizaciones' "PC Toolkit y las apps que instalan sus herramientas ($apps) se revisan al arrancar y cada 6 horas."))
+    [void]$panel.Children.Add((New-UpdatesCard))
+    [void]$panel.Children.Add((New-ToggleRow 'Actualizar PC Toolkit automáticamente' 'Instala sola la versión nueva, con el panel cerrado, y avisa al volver a la bandeja.' (Test-AutoUpdate 'pctoolkit') { param($id, $on) Set-AutoUpdate $id $on } 'pctoolkit'))
+    $hint = New-Hint 'Cada app tiene su propio «Actualizar automáticamente» en la página de su herramienta.'
+    $hint.Margin = '4,4,0,8'
+    [void]$panel.Children.Add($hint)
 
     [void]$panel.Children.Add((New-SectionHeader 'Más'))
     $more = New-Ui '<StackPanel Orientation="Horizontal"/>'
@@ -920,38 +927,441 @@ function Show-SettingsPage {
     foreach ($b in $btnFolder, $btnRepo, $btnExit) { [void]$more.Children.Add($b) }
     [void]$panel.Children.Add($more)
 
+    # Se repinta sola mientras busca o actualiza (y al terminar)
+    $script:PageSignature = { Get-UpdatesSignature }
+    $script:lastSignature = Get-UpdatesSignature
     Set-Page $panel 'Ajustes' $true
-    $ui.Scroll.ScrollToTop()
+    if ($first) { $ui.Scroll.ScrollToTop() }
 }
 
-# Comprobar versión: se deja pintar "Buscando..." y luego se consulta
-function Start-UpdateCheck($Button) {
-    if ($Button.Content -eq 'Actualizar') {
-        $script:updateCard.FindName('D').Text = 'Actualizando... PC Toolkit se volverá a abrir solo.'
-        $Button.IsEnabled = $false
-        Start-ToolkitUpdate
-        $script:exitAt = (Get-Date).AddSeconds(1)
-        return
+# --- Actualizaciones: PC Toolkit y las apps de las herramientas con "updates" en tool.json (update.ps1) ---
+# core\update-check.ps1 consulta las últimas versiones en otro proceso (al arrancar, cada 6 h y con «Buscar
+# actualizaciones») y el resultado se guarda en data\updates.json, así que repintar no vuelve a preguntar a GitHub.
+# Con «Actualizar automáticamente» (data\manager.json) se instalan solas y se avisa al terminar; si la app está
+# abierta no se cierra: se reintenta cada 30 min. Sin él, se marca en su tarjeta y en su página. Las que piden
+# permisos de administrador (Everything) nunca se instalan solas: solo se avisa.
+
+$UpdatesFile   = Join-Path (Get-ToolkitRoot) 'data\updates.json'
+$CheckInterval = [TimeSpan]::FromHours(6)
+$RetryDelay    = [TimeSpan]::FromMinutes(30)
+$script:checkJob      = $null   # revisión en marcha: @{ Process; OutFile; Started }
+$script:updatesRev    = 0       # sube con cada cambio (las firmas de las páginas lo incluyen para repintarse)
+$script:updateRetry   = @{}     # id -> cuándo reintentar (su app estaba abierta)
+$script:updateErrors  = @{}     # id -> error de su última actualización automática
+$script:autoTried     = @{}     # id -> versión que ya falló en automático: no se insiste hasta la próxima revisión
+$script:appInfo       = @{}     # id -> @{ At; Info }: versión instalada, en uso... (se guarda unos segundos)
+$script:toolkitQueued = $null   # 'auto' o 'manual': actualizar PC Toolkit cuando acaben las demás actualizaciones
+$script:toolkitUpdating = $null # cuándo se lanzó la actualización de PC Toolkit (el instalador cierra el gestor)
+
+function Get-UpdateCache {
+    $c = @{ Checked = $null; Items = @{} }
+    if (Test-Path $UpdatesFile) {
+        try {
+            $j = Get-Content $UpdatesFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($j.Checked) { $c.Checked = [datetime]$j.Checked }
+            foreach ($p in $j.Items.PSObject.Properties) { $c.Items[$p.Name] = @{ Latest = [string]$p.Value.Latest; Error = [string]$p.Value.Error } }
+        } catch {}
     }
-    $script:updateCard.FindName('D').Text = 'Buscando...'
-    $Button.IsEnabled = $false
-    $script:checkUpdateAt = (Get-Date).AddMilliseconds(80)
+    $c
 }
 
-function Invoke-UpdateCheck {
-    $d = $script:updateCard.FindName('D')
-    $b = $script:updateCard.FindName('Check')
-    $b.IsEnabled = $true
-    try {
-        $remote = Get-ToolkitRemoteVersion
-        if ([version]$remote -gt [version](Get-ToolkitVersion)) {
-            $d.Text = "Hay una versión nueva: $remote"
-            $b.Content = 'Actualizar'
-            $b.Style = $app.Resources['AccentButton']
-        } else {
-            $d.Text = 'Ya tienes la última versión.'
+function Save-UpdateCache {
+    New-Item -ItemType Directory -Force -Path (Split-Path $UpdatesFile) | Out-Null
+    @{ Checked = $script:updates.Checked.ToString('o'); Items = $script:updates.Items } | ConvertTo-Json -Depth 4 | Set-Content $UpdatesFile -Encoding UTF8
+}
+
+$script:updates = Get-UpdateCache
+
+function Test-AutoUpdate([string]$Id) { [bool]$script:prefs.AutoUpdate[$Id] }
+
+function Set-AutoUpdate([string]$Id, [bool]$On) {
+    $script:prefs.AutoUpdate[$Id] = $On
+    Save-HomePrefs
+    $script:autoTried.Remove($Id)
+    $script:updateErrors.Remove($Id)
+    $script:updateRetry.Remove($Id)
+    $script:updatesRev++
+    if ($On) { Invoke-AutoUpdates }   # si ya se sabe que hay versión nueva, no espera a la próxima revisión
+}
+
+# Herramientas instaladas cuya app se actualiza desde aquí
+function Get-UpdatableTools { @($tools | Where-Object { $_.HasUpdates -and (Get-ToolState $_) -ne 'NotInstalled' }) }
+
+# Versión instalada, si está abierta y si actualizarla pide administrador (update.ps1 -Action info), guardado
+# unos segundos: las firmas de las páginas lo piden a menudo
+function Get-AppInfo($Tool, [switch]$Fresh) {
+    $c = $script:appInfo[$Tool.id]
+    if (-not $Fresh -and $c -and ((Get-Date) - $c.At).TotalSeconds -lt 15) { return $c.Info }
+    $info = try { Get-ToolAppInfo $Tool } catch {
+        Write-ManagerLog "ERROR update.ps1 de $($Tool.id): $($_.Exception.Message)"
+        [pscustomobject]@{ Installed = $null; InUse = $false; Elevated = $false }
+    }
+    $script:appInfo[$Tool.id] = @{ At = Get-Date; Info = $info }
+    $info
+}
+
+# Estado de actualización de PC Toolkit ('pctoolkit') o de la app de una herramienta. La última versión es la
+# de la última revisión; la instalada se mira en el momento (así, al actualizar, la marca desaparece sola).
+function Get-UpdateState([string]$Id) {
+    if ($Id -eq 'pctoolkit') {
+        $tool = $null
+        $info = [pscustomobject]@{ Installed = Get-ToolkitVersion; InUse = $false; Elevated = $false }
+    } else {
+        $tool = $tools | Where-Object id -eq $Id
+        $info = Get-AppInfo $tool
+    }
+    $item = $script:updates.Items[$Id]
+    $latest = if ($item) { $item.Latest }
+    [pscustomobject]@{
+        Id         = $Id
+        Tool       = $tool
+        Name       = if ($tool) { $tool.name } else { 'PC Toolkit' }
+        Glyph      = if ($tool) { ConvertTo-Glyph $tool.icon } else { ConvertTo-Glyph 'E895' }
+        Installed  = [string]$info.Installed
+        Latest     = [string]$latest
+        Available  = (Test-NewerVersion $latest $info.Installed)
+        CheckError = $(if ($item) { [string]$item.Error })
+        InUse      = [bool]$info.InUse
+        Elevated   = [bool]$info.Elevated
+    }
+}
+
+function Get-UpdateStates { @(Get-UpdateState 'pctoolkit') + @(Get-UpdatableTools | ForEach-Object { Get-UpdateState $_.id }) }
+
+# Firma para repintar: de una herramienta ($Id) o de todo (portada y Ajustes)
+function Get-UpdatesSignature([string]$Id) {
+    $states = if ($Id) { @(Get-UpdateState $Id) } else { Get-UpdateStates }
+    $s = ($states | ForEach-Object {
+        $busyText = if ($busy.ContainsKey($_.Id)) { Get-BusyText $_.Id }
+        "$($_.Id)=$($_.Installed)>$($_.Latest)|$($_.InUse)|$busyText|$($errors[$_.Id])|$($script:updateErrors[$_.Id])|$($script:updateRetry[$_.Id])"
+    }) -join ';'
+    "$($script:updatesRev)|$([bool]$script:checkJob)|$($script:toolkitQueued)|$([bool]$script:toolkitUpdating)|$s"
+}
+
+function Format-Ago([datetime]$When) {
+    $m = ((Get-Date) - $When).TotalMinutes
+    if ($m -lt 1) { 'hace un momento' }
+    elseif ($m -lt 60) { "hace $([int][Math]::Floor($m)) min" }
+    elseif ($m -lt 1440) { "hace $([int][Math]::Floor($m / 60)) h" }
+    else { "el $($When.ToString('d/M')) a las $($When.ToString('HH:mm'))" }
+}
+
+# Icono de la bandeja: lo dice al pasar el ratón si hay algo por actualizar
+function Update-TrayText {
+    $n = @(Get-UpdateStates | Where-Object Available).Count
+    $tray.Text = if ($n -eq 1) { 'PC Toolkit · 1 actualización disponible' }
+                 elseif ($n -gt 1) { "PC Toolkit · $n actualizaciones disponibles" }
+                 else { 'PC Toolkit' }
+}
+
+# Revisión en segundo plano (no espera a la red: el reloj recoge el resultado al terminar)
+function Start-UpdateCheck {
+    if ($script:checkJob) { return }
+    $out = Join-Path $env:TEMP "pctoolkit-updates-$([guid]::NewGuid().ToString('N')).json"
+    $psi = New-Object Diagnostics.ProcessStartInfo 'powershell.exe'
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot '..\core\update-check.ps1')`" -OutFile `"$out`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow  = $true
+    $script:checkJob = @{ Process = [Diagnostics.Process]::Start($psi); OutFile = $out; Started = Get-Date }
+    $script:nextCheckAt = (Get-Date) + $CheckInterval
+    $script:updatesRev++
+}
+
+function Complete-UpdateCheck {
+    $job = $script:checkJob
+    $script:checkJob = $null
+    $result = $null
+    if (Test-Path $job.OutFile) {
+        try { $result = Get-Content $job.OutFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
+        Remove-Item $job.OutFile -ErrorAction SilentlyContinue
+    }
+    if ($result) {
+        $items = @{}
+        foreach ($p in $result.PSObject.Properties) {
+            $latest = [string]$p.Value.Latest
+            # si esta vez no se pudo consultar, se conserva la última versión conocida
+            if (-not $latest -and $script:updates.Items[$p.Name]) { $latest = $script:updates.Items[$p.Name].Latest }
+            $items[$p.Name] = @{ Latest = $latest; Error = [string]$p.Value.Error }
         }
-    } catch { $d.Text = 'No se pudo comprobar (¿sin conexión?).' }
+        $script:updates = @{ Checked = Get-Date; Items = $items }
+        Save-UpdateCache
+        $script:autoTried = @{}
+        $script:appInfo = @{}
+        $found = @(Get-UpdateStates | Where-Object Available | ForEach-Object { "$($_.Name) $($_.Latest)" })
+        Write-ManagerLog "Actualizaciones revisadas: $(if ($found) { $found -join ', ' } else { 'todo al día' })"
+    } else {
+        Write-ManagerLog 'ERROR: la revisión de actualizaciones no terminó bien'
+    }
+    $script:updatesRev++
+    Invoke-AutoUpdates
+    Update-TrayText
+}
+
+# Instala solas las versiones nuevas con «Actualizar automáticamente» (si la app está abierta, lo reintenta en
+# 30 min). PC Toolkit va al final, cuando no queda nada actualizándose y con el panel cerrado (ver el reloj).
+function Invoke-AutoUpdates {
+    foreach ($t in Get-UpdatableTools) {
+        if (-not (Test-AutoUpdate $t.id) -or $busy.ContainsKey($t.id) -or $script:updateRetry.ContainsKey($t.id)) { continue }
+        $s = Get-UpdateState $t.id
+        if (-not $s.Available -or $s.Elevated -or $script:autoTried[$t.id] -eq $s.Latest) { continue }
+        if ((Get-AppInfo $t -Fresh).InUse) { Set-UpdateRetry $t; continue }
+        Write-ManagerLog "Actualizando $($t.name) $($s.Installed) -> $($s.Latest) (automático)"
+        Start-Action $t 'autoupdate'
+    }
+    $tk = Get-UpdateState 'pctoolkit'
+    if ((Test-AutoUpdate 'pctoolkit') -and $tk.Available -and -not $script:toolkitQueued -and -not $script:toolkitUpdating -and
+        $script:autoTried['pctoolkit'] -ne $tk.Latest) { $script:toolkitQueued = 'auto' }
+}
+
+function Set-UpdateRetry($Tool) {
+    $script:updateRetry[$Tool.id] = (Get-Date) + $RetryDelay
+    Write-ManagerLog "$($Tool.name): la app está abierta; se reintentará actualizarla a las $($script:updateRetry[$Tool.id].ToString('HH:mm'))"
+    $script:updatesRev++
+}
+
+# Al terminar una actualización de app (Update-Busy). Estado: "OK <versión>", "EN USO" (código 2) o "ERROR: ..."
+function Complete-AppUpdate([string]$Id, [string]$Action, [int]$Code, [string]$Text) {
+    $t = $tools | Where-Object id -eq $Id
+    $script:appInfo.Remove($Id)
+    $script:updatesRev++
+    if ($Code -eq 0) {
+        $v = ($Text -replace '^OK\s*', '').Trim()
+        $script:updateErrors.Remove($Id)
+        $script:updateRetry.Remove($Id)
+        Write-ManagerLog "$($t.name): app actualizada a $v$(if ($Action -eq 'autoupdate') { ' (automático)' })"
+        if ($Action -eq 'autoupdate' -or -not $win.IsVisible) { Show-Osd (ConvertTo-Glyph $t.icon) "$($t.name) $v" 'Actualización instalada' -Seconds 6 }
+    } else {
+        $msg = $Text -replace '^ERROR:\s*', ''
+        if ($Action -eq 'update') {
+            $errors[$Id] = $msg
+            Write-ManagerLog "ERROR al actualizar $($t.name): $msg"
+        } elseif ($Code -eq 2 -or (Get-AppInfo $t -Fresh).InUse) {
+            Set-UpdateRetry $t   # la abrieron justo antes o durante la descarga
+        } else {
+            # no se insiste con esta versión hasta la próxima revisión
+            $script:updateErrors[$Id] = $msg
+            $script:autoTried[$Id] = (Get-UpdateState $Id).Latest
+            Write-ManagerLog "ERROR al actualizar $($t.name) (automático): $msg"
+        }
+    }
+    Update-TrayText
+}
+
+# Botón Actualizar de una app (la cierra si está abierta: lo ha pedido el usuario)
+function Start-AppUpdate($Tool) {
+    $script:updateErrors.Remove($Tool.id)
+    $script:updateRetry.Remove($Tool.id)
+    Start-Action $Tool 'update'
+}
+
+# Botón Actualizar de PC Toolkit: si hay apps actualizándose, espera a que acaben (el instalador reinstala las
+# herramientas y cierra el gestor)
+function Request-ToolkitUpdate {
+    $script:toolkitQueued = 'manual'
+    $script:updatesRev++
+    Invoke-ToolkitQueue
+    Update-Page
+}
+
+function Invoke-ToolkitQueue {
+    if (-not $script:toolkitQueued -or $busy.Count -or $script:checkJob) { return }
+    $auto = $script:toolkitQueued -eq 'auto'
+    if ($auto -and $win.IsVisible) { return }   # en automático, con el panel cerrado
+    $script:toolkitQueued = $null
+    $s = Get-UpdateState 'pctoolkit'
+    Write-ManagerLog "Actualizando PC Toolkit $($s.Installed) -> $($s.Latest)$(if ($auto) { ' (automático)' })"
+    $script:toolkitUpdating = Get-Date
+    $script:autoTried['pctoolkit'] = $s.Latest   # si el instalador falla, no se repite en bucle
+    $script:updatesRev++
+    Start-ToolkitUpdate -NoShow:$auto
+    # El instalador cierra el gestor y lo vuelve a abrir. Con el botón, como siempre, se cierra ya.
+    if (-not $auto) { $script:exitAt = (Get-Date).AddSeconds(1) }
+}
+
+function Update-AllApps {
+    foreach ($s in @(Get-UpdateStates | Where-Object Available)) {
+        if ($s.Tool) { if (-not $busy.ContainsKey($s.Id)) { Start-AppUpdate $s.Tool } }
+        else { $script:toolkitQueued = 'manual' }
+    }
+    $script:updatesRev++
+    Invoke-ToolkitQueue
+    Update-Page
+}
+
+# Lo que se dice de una app bajo su versión (página de la herramienta y lista de Ajustes): texto y color
+function Get-UpdateDetail($State) {
+    $id = $State.Id
+    if ($busy.ContainsKey($id)) { return @((Get-BusyText $id), 'SubBrush') }
+    if ($id -eq 'pctoolkit' -and $script:toolkitUpdating) { return @('Actualizando... PC Toolkit se volverá a abrir solo.', 'SubBrush') }
+    if ($id -eq 'pctoolkit' -and $script:toolkitQueued) { return @('Se actualizará en cuanto terminen las demás actualizaciones.', 'SubBrush') }
+    if ($errors.ContainsKey($id)) { return @($errors[$id], 'DangerBrush') }
+    if ($script:updateErrors.ContainsKey($id)) { return @("No se pudo actualizar sola: $($script:updateErrors[$id])", 'DangerBrush') }
+    if ($script:updateRetry.ContainsKey($id)) {
+        return @("La app está abierta: se actualizará cuando la cierres (lo vuelve a intentar a las $($script:updateRetry[$id].ToString('HH:mm'))).", 'SubBrush')
+    }
+    if ($State.Available) {
+        if ($State.Elevated) { return @('Actualizarla pide permisos de administrador: Windows preguntará.', 'SubBrush') }
+        if ($State.InUse) { return @('La app está abierta: se cerrará un momento para actualizarla.', 'SubBrush') }
+        if (Test-AutoUpdate $id) { return @('Se instalará sola en breve.', 'SubBrush') }
+        return @('Hay una versión nueva.', 'SubBrush')
+    }
+    if ($script:checkJob) { return @('Buscando actualizaciones...', 'SubBrush') }
+    if ($State.CheckError) { return @($State.CheckError, 'WarnBrush') }
+    if ($script:updates.Checked) { return @("Comprobado $(Format-Ago $script:updates.Checked).", 'SubBrush') }
+    @('Todavía no se ha comprobado.', 'SubBrush')
+}
+
+# «Actualización disponible» en la tarjeta (o el mosaico, -Short) de una herramienta con versión nueva de su app
+function Set-UpdateNote($TextBlock, $Tool, [switch]$Short) {
+    if (-not $Tool.HasUpdates -or $busy.ContainsKey($Tool.id)) { return }
+    $s = Get-UpdateState $Tool.id
+    if (-not $s.Available) { return }
+    $TextBlock.Text = if ($Short) { 'Actualización disponible' } else { "Actualización disponible · $($s.Latest)" }
+    $TextBlock.Visibility = 'Visible'
+}
+
+$UpdateRowXaml = @'
+<Grid Margin="0,8,0,0">
+  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+  <TextBlock x:Name="Icon" Style="{StaticResource Icon}" FontSize="16" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"/>
+  <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+    <TextBlock x:Name="T" Style="{StaticResource Body}"/>
+    <TextBlock x:Name="D" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+  </StackPanel>
+  <Button x:Name="Update" Grid.Column="2" Style="{StaticResource AccentButton}" Content="Actualizar" VerticalAlignment="Center"/>
+</Grid>
+'@
+
+# Pulsar Actualizar en una fila (de PC Toolkit o de una app)
+$OnUpdateClick = {
+    param($s, $e)
+    $e.Handled = $true   # en la portada, que no abra la página de la herramienta
+    Invoke-Safe { if ($s.Tag) { Start-AppUpdate $s.Tag } else { Request-ToolkitUpdate } }
+}
+
+# Fila «PC Toolkit 1.4.0 → 1.4.1 [Actualizar]» de la lista de Ajustes
+function New-UpdateRow($State) {
+    $row = New-Ui $UpdateRowXaml
+    $row.FindName('Icon').Text = $State.Glyph
+    $row.FindName('T').Text = "$($State.Name) $($State.Installed) → $($State.Latest)"
+    $d = Get-UpdateDetail $State
+    $row.FindName('D').Text = $d[0]
+    $row.FindName('D').Foreground = $app.Resources[$d[1]]
+    $btn = $row.FindName('Update')
+    $btn.Tag = $State.Tool
+    [Windows.Automation.AutomationProperties]::SetName($btn, "Actualizar $($State.Name)")
+    $btn.IsEnabled = -not ($busy.ContainsKey($State.Id) -or ($State.Id -eq 'pctoolkit' -and ($script:toolkitQueued -or $script:toolkitUpdating)))
+    $btn.Add_Click($OnUpdateClick)
+    $row
+}
+
+# Ajustes › Actualizaciones: versión de PC Toolkit, «Buscar actualizaciones» (revisa ya PC Toolkit y todas las
+# apps, sin mirar lo guardado) y la lista de lo que tiene versión nueva, con «Actualizar todo» si hay varias
+function New-UpdatesCard {
+    $card = New-Ui @'
+<Border Style="{StaticResource Card}">
+  <StackPanel>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+        <TextBlock x:Name="T" Style="{StaticResource Body}"/>
+        <TextBlock x:Name="D" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+      </StackPanel>
+      <Button x:Name="Check" Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Buscar actualizaciones" VerticalAlignment="Center"/>
+    </Grid>
+    <ContentControl x:Name="Progress" Focusable="False"/>
+    <StackPanel x:Name="List"/>
+    <Button x:Name="All" Style="{StaticResource AccentButton}" Content="Actualizar todo" HorizontalAlignment="Left" Margin="0,12,0,0" Visibility="Collapsed"/>
+  </StackPanel>
+</Border>
+'@
+    $states = Get-UpdateStates
+    $pending = @($states | Where-Object { $_.Available -or ($busy.ContainsKey($_.Id) -and $busy[$_.Id].Action -in 'update', 'autoupdate') })
+    $card.FindName('T').Text = "PC Toolkit $(Get-ToolkitVersion)"
+    $d = $card.FindName('D')
+    $check = $card.FindName('Check')
+    $check.Add_Click({ Invoke-Safe { Start-UpdateCheck; Update-Page } })
+    if ($script:checkJob) {
+        $d.Text = 'Buscando actualizaciones...'
+        $check.IsEnabled = $false
+        $card.FindName('Progress').Content = New-ProgressBar
+    } elseif (-not $script:updates.Checked) {
+        $d.Text = 'Todavía no se ha buscado.'
+    } else {
+        $when = "Última revisión $(Format-Ago $script:updates.Checked)"
+        $d.Text = if ($pending) { "$when · $(if ($pending.Count -eq 1) { 'hay 1 actualización' } else { "hay $($pending.Count) actualizaciones" })" }
+                  else { "$when · todo al día" }
+    }
+    $list = $card.FindName('List')
+    foreach ($s in $pending) { [void]$list.Children.Add((New-UpdateRow $s)) }
+    # Las que no se pudieron comprobar
+    foreach ($s in @($states | Where-Object { $_.CheckError -and -not $_.Available })) {
+        $h = New-Hint "$($s.Name): $($s.CheckError)"
+        $h.Margin = '0,8,0,0'
+        $h.Foreground = $app.Resources['WarnBrush']
+        [void]$list.Children.Add($h)
+    }
+    if (@($pending | Where-Object { -not $busy.ContainsKey($_.Id) }).Count -ge 2) {
+        $all = $card.FindName('All')
+        $all.Visibility = 'Visible'
+        $all.Add_Click({ Invoke-Safe { Update-AllApps } })
+    }
+    $card
+}
+
+# Página de una herramienta con app: versión instalada y última, Actualizar y «Actualizar automáticamente»
+function New-UpdateSection($Tool) {
+    $s = Get-UpdateState $Tool.id
+    $p = New-Ui '<StackPanel/>'
+    [void]$p.Children.Add((New-SectionHeader 'Actualizaciones'))
+    $card = New-Ui @'
+<Border Style="{StaticResource Card}">
+  <StackPanel>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+        <TextBlock x:Name="T" Style="{StaticResource Body}"/>
+        <TextBlock x:Name="D" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+      </StackPanel>
+      <Button x:Name="Update" Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Actualizar" VerticalAlignment="Center"/>
+    </Grid>
+    <ContentControl x:Name="Progress" Focusable="False"/>
+  </StackPanel>
+</Border>
+'@
+    $card.FindName('T').Text = if (-not $s.Installed) { 'La app no está instalada' }
+                               elseif ($s.Available) { "Versión instalada $($s.Installed) · última $($s.Latest)" }
+                               elseif ($s.Latest) { "Versión $($s.Installed) · al día" }
+                               else { "Versión $($s.Installed)" }
+    $d = Get-UpdateDetail $s
+    $card.FindName('D').Text = $d[0]
+    $card.FindName('D').Foreground = $app.Resources[$d[1]]
+    $btn = $card.FindName('Update')
+    $btn.Tag = $Tool
+    [Windows.Automation.AutomationProperties]::SetName($btn, "Actualizar $($Tool.name)")
+    if ($s.Available) { $btn.Style = $app.Resources['AccentButton'] }
+    $btn.IsEnabled = $s.Available -and -not $busy.ContainsKey($Tool.id)
+    $btn.Add_Click($OnUpdateClick)
+    if ($busy.ContainsKey($Tool.id)) { $card.FindName('Progress').Content = New-ProgressBar }
+    [void]$p.Children.Add($card)
+    if ($s.Elevated) {
+        $h = New-Hint 'Actualizar esta app pide permisos de administrador, así que no se actualiza sola: cuando hay versión nueva se avisa en su tarjeta y aquí.'
+        $h.Margin = '4,4,0,8'
+        [void]$p.Children.Add($h)
+    } else {
+        [void]$p.Children.Add((New-ToggleRow 'Actualizar automáticamente' 'Instala sola las versiones nuevas y avisa al terminar. Si la app está abierta, no la cierra: espera a que la cierres.' (Test-AutoUpdate $Tool.id) { param($id, $on) Set-AutoUpdate $id $on } $Tool.id))
+    }
+    $p
+}
+
+# Portada: aviso de versión nueva de PC Toolkit (o $null si no la hay)
+function New-ToolkitUpdateCard {
+    $s = Get-UpdateState 'pctoolkit'
+    if (-not $s.Available) { return }
+    $card = New-Ui '<Border Style="{StaticResource Card}" Padding="16,4,16,12" Margin="0,8,0,0"/>'
+    $card.Child = New-UpdateRow $s
+    $card.Child.FindName('T').Text = "PC Toolkit $($s.Latest) disponible"
+    $card
 }
 
 $ui.BackButton.Add_Click({
@@ -1158,7 +1568,7 @@ $osd.Add_SourceInitialized({
 $script:osdUntil = $null
 
 # Aviso abajo en el centro, como el de volumen de Windows
-function Show-Osd([string]$Glyph, [string]$Text, [string]$Detail) {
+function Show-Osd([string]$Glyph, [string]$Text, [string]$Detail, [int]$Seconds = 2) {
     $osdUi.Icon.Text = $Glyph
     $osdUi.Text.Text = $Text
     $osdUi.Detail.Text = $Detail
@@ -1170,7 +1580,7 @@ function Show-Osd([string]$Glyph, [string]$Text, [string]$Detail) {
     $wa = [Windows.SystemParameters]::WorkArea
     $osd.Left = $wa.Left + ($wa.Width - $osd.Width) / 2
     $osd.Top  = $wa.Bottom - $osd.Height - 56
-    $script:osdUntil = (Get-Date).AddSeconds(2)
+    $script:osdUntil = (Get-Date).AddSeconds($Seconds)
 }
 
 $hotkeys.Add_Pressed({
@@ -1187,18 +1597,73 @@ Update-Hotkeys
 # --- Reloj: otra instancia pide mostrar, progreso de acciones, refresco del estado ---
 
 $script:ticks = 0
-$script:checkUpdateAt = $null
 $script:exitAt = $null
 $script:bannerUntil = $null
+
+# Actualizaciones: primera revisión 90 s después de arrancar (para no retrasar el arranque) y luego cada 6 h.
+# Si se acaba de revisar (el gestor se ha reiniciado, p. ej. al actualizarse), no se repite: a las 6 h de esa.
+$script:updatesStartAt = (Get-Date).AddSeconds(90)
+$script:nextCheckAt = $script:updatesStartAt
+if ($script:updates.Checked -and ((Get-Date) - $script:updates.Checked).TotalMinutes -lt 30) { $script:nextCheckAt = $script:updates.Checked + $CheckInterval }
+
+# Si PC Toolkit acaba de actualizarse (con el botón o solo), se avisa al arrancar la versión nueva
+$script:startupOsd = $null
+$script:startupOsdAt = (Get-Date).AddSeconds(5)   # cuando el gestor ya está en marcha
+$currentVersion = Get-ToolkitVersion
+if ($script:prefs.LastVersion -ne $currentVersion) {
+    if (Test-NewerVersion $currentVersion $script:prefs.LastVersion) { $script:startupOsd = $currentVersion }
+    $script:prefs.LastVersion = $currentVersion
+    Save-HomePrefs
+}
+
+function Invoke-UpdateTimers {
+    $now = Get-Date
+    if ($script:startupOsd -and $now -ge $script:startupOsdAt) {
+        Show-Osd (ConvertTo-Glyph 'E895') "PC Toolkit $($script:startupOsd)" 'Actualización instalada' -Seconds 6
+        $script:startupOsd = $null
+    }
+    if ($script:checkJob) {
+        $job = $script:checkJob
+        # sin respuesta en 3 minutos: se da por fallida
+        if (-not $job.Process.HasExited -and ($now - $job.Started).TotalMinutes -gt 3) { try { $job.Process.Kill() } catch {} }
+        if ($job.Process.HasExited) {
+            Complete-UpdateCheck
+            if ($win.IsVisible) { Update-Page }
+        }
+    } elseif ($now -ge $script:nextCheckAt) {
+        Start-UpdateCheck
+        if ($win.IsVisible -and $script:page -eq 'settings') { Update-Page }
+    }
+    if ($script:updatesStartAt -and $now -ge $script:updatesStartAt) {
+        # con lo guardado de la última revisión (p. ej., una app que estaba abierta al reiniciar)
+        $script:updatesStartAt = $null
+        Invoke-AutoUpdates
+        Update-TrayText
+    }
+    $due = @($script:updateRetry.Keys | Where-Object { $script:updateRetry[$_] -le $now })
+    if ($due) {
+        foreach ($id in $due) { $script:updateRetry.Remove($id) }
+        $script:updatesRev++
+        Invoke-AutoUpdates
+    }
+    Invoke-ToolkitQueue
+    # Si el instalador de PC Toolkit no llegó a cerrar el gestor en 5 minutos, ha fallado (ver update.log)
+    if ($script:toolkitUpdating -and ($now - $script:toolkitUpdating).TotalMinutes -gt 5) {
+        $script:toolkitUpdating = $null
+        $script:updatesRev++
+        Write-ManagerLog "ERROR: PC Toolkit no se pudo actualizar (mira $(Join-Path (Get-ToolkitRoot) 'update.log'))"
+    }
+}
+
 $timer = New-Object Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromMilliseconds(400)
 $timer.Add_Tick({
     try {
         if ($showEvent.WaitOne(0)) { Show-Flyout }
         if ($script:exitAt -and (Get-Date) -ge $script:exitAt) { Exit-Manager; return }
-        if ($script:checkUpdateAt -and (Get-Date) -ge $script:checkUpdateAt) { $script:checkUpdateAt = $null; Invoke-UpdateCheck }
         if ($script:bannerUntil -and (Get-Date) -ge $script:bannerUntil) { $script:bannerUntil = $null; $ui.Banner.Visibility = 'Collapsed' }
         if ($script:osdUntil -and (Get-Date) -ge $script:osdUntil) { $script:osdUntil = $null; $osd.Hide() }
+        try { Invoke-UpdateTimers } catch { Write-ManagerLog "ERROR (actualizaciones): $($_.Exception.Message)" }
 
         $finished = Update-Busy
         if (-not $win.IsVisible) { return }

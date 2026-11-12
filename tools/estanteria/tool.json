@@ -8,5 +8,6 @@
   "installNote": "Descarga e instala la app La Estantería para el usuario actual, sin permisos de administrador.",
   "task": "PcToolkitEstanteria",
   "log": "Estanteria.log",
+  "updates": true,
   "hotkey": { "keys": "Ctrl+Alt+L", "script": "hotkey.ps1", "description": "Abre La Estantería" }
 }

@@ -74,8 +74,34 @@ defecto, arranca con Windows.
   La vista y los grupos plegados se recuerdan.
 - **Orden**: en Ajustes → Portada → Orden de las herramientas se cambia con flechas; por
   defecto es alfabético por nombre.
-- **Ajustes** (rueda dentada): iniciar con Windows, buscar actualizaciones (se
-  instalan solas respetando lo que tengas activado), abrir la carpeta y salir.
+- **Ajustes** (rueda dentada): iniciar con Windows, actualizaciones (ver abajo), abrir la
+  carpeta y salir.
+
+### Actualizaciones
+
+PC Toolkit y los programas que instalan algunas herramientas (**La Estantería**, **LocalSend** y
+**Everything**) se actualizan cada uno por su lado, sin reinstalar nada:
+
+- El gestor busca versiones nuevas en segundo plano, sin congelar el panel: un minuto y medio después de
+  arrancar y luego cada 6 horas. **Ajustes → Actualizaciones → Buscar actualizaciones** revisa en ese momento
+  PC Toolkit y todas las apps, y lista lo que tiene versión nueva, cada una con su botón **Actualizar** (y
+  **Actualizar todo** si hay varias), o dice que todo está al día.
+- La página de cada herramienta con app tiene su sección **Actualizaciones**: versión instalada y última,
+  botón **Actualizar** (con su progreso y su registro, como instalar) y el interruptor **Actualizar
+  automáticamente**. PC Toolkit tiene el suyo en Ajustes. Por defecto están apagados.
+- Con el interruptor activado, la versión nueva se instala sola y sale un aviso al terminar
+  («La Estantería 0.5.1 · Actualización instalada»). Si la app está abierta **no se cierra**: se vuelve a
+  intentar cada 30 minutos hasta que la cierres. PC Toolkit se actualiza solo con el panel cerrado y vuelve a
+  la bandeja; al arrancar la versión nueva lo avisa.
+- Con el interruptor apagado, se avisa: «Actualización disponible» en su tarjeta de la portada y en su página,
+  un aviso arriba en la portada para PC Toolkit y el texto del icono de la bandeja.
+- El botón **Actualizar** sí cierra la app si está abierta (lo has pedido tú) y la vuelve a abrir si hacía falta
+  (LocalSend, Everything).
+- Everything se instala para todo el equipo y actualizarlo pide **permisos de administrador**, así que nunca se
+  actualiza solo: solo avisa, y al pulsar Actualizar Windows pregunta.
+- Lo último que se encontró se guarda en `data\updates.json` (así no se pregunta a GitHub en cada repintado: son
+  dos consultas a su API por revisión) y los interruptores en `data\manager.json`. Jarvis no entra: su entorno de
+  Python y OpenJarvis se rehacen al reinstalarlo, y Ollama se actualiza solo.
 
 ### Audio AutoSwitch
 
@@ -127,6 +153,9 @@ En su página de ajustes:
   instalación se cancela. Si ya lo tenías, no pide nada. La tarea arranca Everything en la bandeja al
   iniciar sesión (es el que atiende las búsquedas); la ventana vive en el gestor, así que abre al instante.
 - Desinstalar la herramienta no desinstala Everything (se quita desde Configuración > Aplicaciones).
+- **Actualizaciones**: la última versión se lee de [voidtools.com](https://www.voidtools.com/downloads/) y se
+  actualiza con winget. Como pide permisos de administrador, no se actualiza sola: avisa en su tarjeta y en su
+  página, y al pulsar **Actualizar** Windows pregunta (Everything se cierra un momento y vuelve a la bandeja).
 
 ### La Estantería
 
@@ -151,6 +180,9 @@ En su página de ajustes:
   de su serie; se puede cancelar.
 - El CI compila el instalador en Windows cuando cambia `tools/estanteria/app` y, con una etiqueta `estanteria-v<versión>`,
   lo publica en Releases; la herramienta descarga la última release y la instala para el usuario actual (sin admin).
+  El gestor ve las releases nuevas solo (ver [Actualizaciones](#actualizaciones)): publicar una versión de la app **no
+  necesita subir `VERSION`** de PC Toolkit. Si está abierta, ni la actualización automática ni reinstalar la herramienta
+  la cierran; el botón Actualizar de su página sí.
   Para publicar una versión nueva: subir `version` en `src-tauri/tauri.conf.json`, `package.json`, `Cargo.toml` y
   `Cargo.lock`, mover el visor (`estanteria-viewer` en `package.json` y `pnpm-lock.yaml`) al commit del repo estanteria
   y añadir sus novedades a `viewer/src/lib/changelog.ts` (las enseña Ajustes → Acerca de), y etiquetar.
@@ -195,6 +227,10 @@ En su página de ajustes:
   acceder a la red: acéptalo para las redes privadas.
 - Al desactivarla deja de iniciarse solo y se quita de **Enviar a**; si está abierto no se cierra (podría
   estar pasando archivos). Desinstalar la herramienta no desinstala LocalSend.
+- **Actualizaciones**: mira la última release de [LocalSend en GitHub](https://github.com/localsend/localsend/releases)
+  y lo actualiza con winget. Si solo está oculto en la bandeja, se cierra, se actualiza y se vuelve a abrir oculto
+  (también en automático); con su ventana abierta, la actualización automática espera a que la cierres. Si winget
+  todavía no tiene la versión recién publicada, se vuelve a intentar en la siguiente revisión.
 
 ### Sonidos de dispositivos
 
@@ -253,7 +289,7 @@ En su página de ajustes:
 ## Actualizar y desinstalar
 
 ```powershell
-# Actualizar (o el botón del gestor)
+# Actualizar (o Ajustes › Actualizaciones en el gestor, que también puede hacerlo solo)
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/ikerlorente11/pc-toolkit/main/install.ps1))) -Update
 
 # Desinstalar todo (o desde Configuración > Aplicaciones > PC Toolkit)
@@ -267,7 +303,8 @@ install.ps1 / uninstall.ps1   instalador global
 core/Toolkit.psm1             funciones comunes (estado, activar, instalar...)
 core/run-hidden.vbs           lanza scripts de PowerShell sin ventana
 manager/PcToolkit.ps1         gestor: icono de bandeja + panel WPF (theme.xaml, flyout.xaml)
-core/tool-action.ps1          ejecuta instalar/activar/... en segundo plano para el gestor
+core/tool-action.ps1          ejecuta instalar/activar/actualizar... en segundo plano para el gestor
+core/update-check.ps1         busca versiones nuevas de PC Toolkit y de las apps, en segundo plano
 setup/                        PCToolkit-Setup.exe (C#; se compila con setup/build.ps1)
 tools/<id>/                   una carpeta por herramienta
 ```
@@ -290,9 +327,10 @@ Crea `tools/<id>/` con:
 | `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
 | `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa (el usuario puede cambiarlo; se guarda en `data\hotkeys.json`); el script devuelve el texto del aviso (si no devuelve nada, no hay aviso) |
 | `disable.ps1` | no | Deja el sistema como estaba al desactivarla |
+| `update.ps1` + `"updates": true` en `tool.json` | no | Si instala un programa con versiones propias: con `-Action info` devuelve `Installed` (versión instalada), `InUse` (está abierto y actualizarlo obligaría a cerrarlo) y `Elevated` (actualizarlo pide admin: entonces nunca se actualiza solo); con `-Action latest`, la última versión publicada (pocas llamadas a la red); con `-Action update`, lo actualiza y devuelve la versión nueva (con `-Auto`, sin cerrarlo nunca). El gestor añade la sección Actualizaciones y lo revisa con los demás (ver `core/Toolkit.psm1`) |
 
 El gestor y el instalador la detectan solos. Sube `VERSION` para que los PCs
-instalados vean la actualización.
+instalados vean la actualización del código de PC Toolkit (las apps con `update.ps1` no lo necesitan).
 
 ## Licencia
 

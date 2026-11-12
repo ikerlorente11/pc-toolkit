@@ -8,12 +8,14 @@
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Tools all               # todas, sin preguntar
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Tools taskbar-rdp       # solo las indicadas
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Update                  # actualiza lo ya instalado
+#   ... -Update -NoShow   (actualizacion automatica desde el gestor: lo deja en la bandeja sin abrir el panel)
 #
 # (Este archivo debe quedarse en ASCII: con "irm | iex" no se respeta la codificacion.)
 [CmdletBinding()]
 param(
     [string[]]$Tools,
-    [switch]$Update
+    [switch]$Update,
+    [switch]$NoShow
 )
 
 $ErrorActionPreference = 'Stop'
@@ -104,7 +106,7 @@ foreach ($t in $selected) {
 
 # 6. Gestor: acceso directo en el menu Inicio, arranque con Windows y abrirlo
 Register-Manager -Autostart ($firstInstall -or (Test-ManagerAutostart))
-Start-Manager -Show
+Start-Manager -Show:(-not $NoShow)
 
 Write-Host ''
 Write-Host "PC Toolkit v$(Get-ToolkitVersion) instalado." -ForegroundColor Green

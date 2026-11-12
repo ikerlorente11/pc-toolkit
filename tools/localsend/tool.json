@@ -7,5 +7,6 @@
   "description": "Envía y recibe archivos entre el PC y el móvil u otros ordenadores de la misma red, sin cuenta, sin cables y sin pasar por Internet, con LocalSend. Lo inicia oculto en la bandeja al iniciar sesión para poder recibir, añade LocalSend al menú Enviar a del Explorador y pone en la portada botones para enviar archivos o abrirlo. Si LocalSend no está instalado, lo instala con winget.",
   "installNote": "Si falta LocalSend, se instala con winget para el usuario actual, sin permisos de administrador.",
   "task": "PcToolkitLocalSend",
-  "log": "LocalSend.log"
+  "log": "LocalSend.log",
+  "updates": true
 }
