@@ -795,6 +795,7 @@ function Show-ToolPage([string]$Id) {
     }
     if ($t.hotkey -and $state -ne 'NotInstalled') { [void]$panel.Children.Add((New-HotkeySection $t)) }
     if ($t.HasUpdates) { [void]$panel.Children.Add((New-UpdateSection $t)) }
+    else { [void]$panel.Children.Add((New-ToolkitManagedSection $t)) }
     $script:settingsSignature = $script:PageSignature
     $script:PageSignature = { Get-ToolPageSignature }
     $script:lastSignature = Get-ToolPageSignature
@@ -916,7 +917,7 @@ function Show-SettingsPage {
     $hint.Margin = '4,4,0,8'
     [void]$panel.Children.Add($hint)
 
-    [void]$panel.Children.Add((New-SectionHeader 'Más'))
+    [void]$panel.Children.Add((New-SectionHeader 'Otras acciones' 'Abrir la carpeta de PC Toolkit, ver su código en GitHub o cerrarlo.'))
     $more = New-Ui '<StackPanel Orientation="Horizontal"/>'
     $btnFolder = New-Ui '<Button Style="{StaticResource SubtleButton}" Content="Abrir carpeta"/>'
     $btnFolder.Add_Click({ Start-Process explorer.exe (Get-ToolkitRoot) })
@@ -1351,6 +1352,28 @@ function New-UpdateSection($Tool) {
     } else {
         [void]$p.Children.Add((New-ToggleRow 'Actualizar automáticamente' 'Instala sola las versiones nuevas y avisa al terminar. Si la app está abierta, no la cierra: espera a que la cierres.' (Test-AutoUpdate $Tool.id) { param($id, $on) Set-AutoUpdate $id $on } $Tool.id))
     }
+    $p
+}
+
+# Página de una herramienta sin app propia: se actualiza con PC Toolkit (su versión y un atajo a Ajustes)
+function New-ToolkitManagedSection($Tool) {
+    $p = New-Ui '<StackPanel/>'
+    [void]$p.Children.Add((New-SectionHeader 'Actualizaciones'))
+    $card = New-Ui @'
+<Border Style="{StaticResource Card}">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+      <TextBlock x:Name="T" Style="{StaticResource Body}" Text="Se actualiza con PC Toolkit"/>
+      <TextBlock x:Name="D" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+    </StackPanel>
+    <Button x:Name="Go" Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Ver actualizaciones" VerticalAlignment="Center"/>
+  </Grid>
+</Border>
+'@
+    $card.FindName('D').Text = "Es parte de PC Toolkit $(Get-ToolkitVersion): llega nueva al actualizarlo, desde Ajustes › Actualizaciones."
+    $card.FindName('Go').Add_Click({ Show-SettingsPage })
+    [void]$p.Children.Add($card)
     $p
 }
 
