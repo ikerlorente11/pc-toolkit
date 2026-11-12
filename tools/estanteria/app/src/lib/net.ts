@@ -43,9 +43,11 @@ export function desktopNet(): NetBackend {
       }
     },
 
-    async download(url, name, headers, progress, folder) {
+    async download(url, name, headers, progress, folder, signal) {
       httpOnly(url)
       const id = `${Date.now()}-${++downloads}`
+      // cancelled: Rust cuts it where it is and deletes what came
+      signal?.addEventListener('abort', () => { invoke('net_cancel', { id }).catch(() => {}) }, { once: true })
       const stop = progress
         ? await listen<{ id: string; url: string; done: number; total: number }>('net-download-progress', (e) => {
             if (e.payload.id === id) progress(e.payload.done, e.payload.total)

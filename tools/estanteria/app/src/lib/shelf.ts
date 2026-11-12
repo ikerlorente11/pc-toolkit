@@ -40,5 +40,6 @@ export function desktopShelf(service: () => string, authorization: () => string)
         return await invoke<UploadDone>('shelf_upload', { id, base: service(), authorization: authorization(), dest })
       } finally { stop() }
     },
+    cancelUpload: (id) => invoke('shelf_upload_cancel', { id }),
   }
 }

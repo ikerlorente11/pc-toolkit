@@ -8,6 +8,7 @@ mod local;
 mod lock;
 mod net;
 mod offline;
+mod place;
 
 use tauri::Emitter;
 
@@ -54,15 +55,19 @@ pub fn run() {
         .manage(offline::Jobs::default())
         .manage(local::Shelf::default())
         .manage(local::Launch(std::sync::Mutex::new(local::file_argument(std::env::args()))))
-        .register_uri_scheme_protocol("offline", offline::serve)
+        .register_asynchronous_uri_scheme_protocol("offline", offline::serve)
+        .setup(|app| {
+            place::init(app.handle());
+            Ok(())
+        })
         .register_asynchronous_uri_scheme_protocol("shelf", local::serve)
         .invoke_handler(tauri::generate_handler![
             secret_get, secret_set, secret_delete,
             offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where,
             local::local_launch_path, local::shelf_config, local::shelf_add_root, local::shelf_remove_root, local::shelf_rename_root,
             local::shelf_add_file, local::shelf_remove_file, local::shelf_scan, local::shelf_prepare, local::shelf_set_cache_limit,
-            local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload,
-            net::net_user_agent, net::net_download, net::net_save, net::net_save_as, net::net_downloads_dir,
+            local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload, local::shelf_upload_cancel,
+            net::net_user_agent, net::net_download, net::net_save, net::net_save_as, net::net_downloads_dir, net::net_cancel, place::downloads_set_dir,
             lock::lock_available, lock::lock_unlock
         ])
         .run(tauri::generate_context!())

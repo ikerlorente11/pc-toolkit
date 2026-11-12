@@ -69,6 +69,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { open } from '@tauri-apps/plugin-dialog'
 import { Api, CatalogRegistry, ExtensionsView, withDeviceLibraries, LockScreen, appSettings, useAppLock, CatalogView, CatalogsView, ChapterReader, Cover, DownloadsView, HomeView, LocalShelf, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SettingsView, SourcesView, STORE,
          createState, nameFromUrl, plural, queryFromView, t, useScrollMemory, viewFromQuery, type Item, type Theme, type Library, type LibrariesBackend, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
@@ -155,7 +156,7 @@ function keeperFor(): Offline {
   const account = accountKey(connection.username, connection.url)
   let keeper = keepers.get(account)
   if (!keeper) {
-    keeper = new Offline(desktopBackend(account, () => connection.url, () => Api.basic(connection.username, token.value)))
+    keeper = new Offline(desktopBackend(account, () => connection.url, () => Api.basic(connection.username, token.value), () => serverName.value))
     keepers.set(account, keeper)
   }
   return keeper
@@ -184,8 +185,19 @@ function makeStore(server: boolean): Store {
   const s: Store = { api: current, covers, pages, readingRoot: 'Lectura', state, refresh, go: go as any, back, notify, read, offline: keeper, shelf,
     libraries: allLibraries, serverName: server ? serverName.value : undefined,
     appearance: { theme, setTheme }, version: version.value && version.value !== 'dev' ? version.value : undefined, catalogs, net, platform: 'desktop', native,
-    downloadsFolder: () => invoke<string>('net_downloads_dir') }
+    downloadsFolder: () => invoke<string>('net_downloads_dir'), setDownloadsFolder }
   return s
+}
+/** Another folder for the downloads (or back to the usual places): Rust moves the copies kept offline there. */
+async function setDownloadsFolder(reset: boolean): Promise<string | null> {
+  const path = reset ? '' : await open({ directory: true, title: t('Carpeta de las descargas') })
+  if (path === null || Array.isArray(path)) return null
+  const now = await invoke<string>('downloads_set_dir', { path })
+  for (const keeper of keepers.values()) await keeper.load()
+  // what came from the catalogs moved with it (same ids): the shelf lists it at its new place
+  await shelf.load()
+  await refresh()
+  return now
 }
 /** Puts a store in place: the pages see `state.connected` go up again and load with it. */
 async function use(server: boolean) {
@@ -250,10 +262,21 @@ const libraries: LibrariesBackend = {
     if (input.type !== 'server') throw new Error(t('Este tipo de biblioteca aún no se puede conectar desde aquí.'))
     if (!input.id && libraryList.value.length) throw new Error(t('De momento solo se puede conectar un servidor propio: cambia el que hay o quítalo antes.'))
     const username = input.username.trim()
-    if (input.secret) token.value = input.secret.trim()
-    else if (username !== connection.username || !token.value) token.value = await loadToken(username)
-    if (!token.value) throw new Error(t('Hace falta la contraseña de aplicación.'))
-    Object.assign(connection, { url: input.url, username, name: input.name })
+    const secret = input.secret ? input.secret.trim()
+      : username !== connection.username || !token.value ? await loadToken(username) : token.value
+    if (!secret) throw new Error(t('Hace falta la contraseña de aplicación.'))
+    // a new or changed address (or credential) must answer before it is kept: else a typo in it would be taken
+    // for being offline and the app would wait for a server that does not exist
+    const url = input.url.trim().replace(/\/+$/, '')
+    if (!input.id || url !== connection.url || username !== connection.username || input.secret) {
+      try {
+        await new Api(url, () => Api.basic(username, secret)).ensureConnected()
+      } catch (err: any) {
+        throw new Error(err?.status === 401 ? t('No reconoce ese usuario o esa contraseña de aplicación.') : t('No se pudo conectar: {error}', { error: err?.message || String(err) }))
+      }
+    }
+    token.value = secret
+    Object.assign(connection, { url, username, name: input.name })
     await saveConnection(connection)
     if (input.secret) await saveToken(username, token.value)
     if (!(await connect())) throw new Error(serverError.value || t('No se pudo conectar.'))

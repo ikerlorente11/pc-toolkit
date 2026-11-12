@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, Runtime, Url};
+use tauri::{AppHandle, Emitter, Runtime, Url};
 
 use crate::local::format_of_name;
 
@@ -36,19 +36,28 @@ pub fn net_user_agent() -> String {
     user_agent()
 }
 
-/// The folder of catalog downloads: `<Downloads>\La Estantería`, or the app's data folder
-/// (`Catálogos`) on a system without a Downloads folder.
+/// The folder of catalog downloads: the one chosen in the settings, or `<Downloads>\La Estantería` (see place.rs).
 pub fn downloads_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    match app.path().download_dir() {
-        Ok(dir) => Ok(dir.join("La Estantería")),
-        Err(_) => Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("Catálogos")),
-    }
+    crate::place::catalogs_dir(app)
 }
 
 /// Where catalog downloads go, to show it.
 #[tauri::command]
 pub fn net_downloads_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     Ok(downloads_dir(&app)?.to_string_lossy().into_owned())
+}
+
+/// The downloads asked to stop (by the page's mark), until they see it.
+static CANCELLED: std::sync::Mutex<Option<std::collections::HashSet<String>>> = std::sync::Mutex::new(None);
+
+fn is_cancelled(id: &str) -> bool {
+    !id.is_empty() && CANCELLED.lock().unwrap().as_ref().is_some_and(|set| set.contains(id))
+}
+
+/// Stops a download going on (`id`: the mark it was started with); what it got is deleted.
+#[tauri::command]
+pub fn net_cancel(id: String) {
+    CANCELLED.lock().unwrap().get_or_insert_with(Default::default).insert(id);
 }
 
 #[derive(Serialize, Clone)]
@@ -76,10 +85,14 @@ pub async fn net_download<R: Runtime>(
     tauri::async_runtime::spawn_blocking(move || {
         let id = id.unwrap_or_default();
         let dir = series_dir(downloads_dir(&app)?, folder.as_deref());
-        download(&url, &name, &headers.unwrap_or_default(), &dir, |done, total| {
+        let got = download(&url, &name, &headers.unwrap_or_default(), &dir, || is_cancelled(&id), |done, total| {
             let _ = app.emit("net-download-progress", Progress { id: &id, url: &url, done, total });
         })
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy().into_owned());
+        if let Some(set) = CANCELLED.lock().unwrap().as_mut() {
+            set.remove(&id);
+        }
+        got
     })
     .await
     .map_err(|e| e.to_string())?
@@ -150,6 +163,7 @@ fn download(
     name: &str,
     headers: &HashMap<String, String>,
     dir: &Path,
+    stop: impl Fn() -> bool,
     progress: impl Fn(u64, u64),
 ) -> Result<PathBuf, String> {
     let parsed = Url::parse(url).map_err(|_| format!("«{url}» no es una dirección válida"))?;
@@ -194,6 +208,9 @@ fn download(
         let mut last = Instant::now();
         progress(0, total);
         loop {
+            if stop() {
+                return Err(io::Error::other("cancelada"));
+            }
             let n = match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(n) => n,
@@ -453,7 +470,7 @@ mod tests {
     #[test]
     fn only_http() {
         let dir = std::env::temp_dir();
-        assert!(download("file:///C:/Windows/win.ini", "x.txt", &HashMap::new(), &dir, |_, _| {}).is_err());
-        assert!(download("no es una url", "x.txt", &HashMap::new(), &dir, |_, _| {}).is_err());
+        assert!(download("file:///C:/Windows/win.ini", "x.txt", &HashMap::new(), &dir, || false, |_, _| {}).is_err());
+        assert!(download("no es una url", "x.txt", &HashMap::new(), &dir, || false, |_, _| {}).is_err());
     }
 }

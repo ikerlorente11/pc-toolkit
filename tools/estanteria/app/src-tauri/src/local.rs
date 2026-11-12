@@ -130,11 +130,56 @@ fn fnv(data: &[u8]) -> u64 {
     h
 }
 
+/// The downloads folder (place.rs sets it), lowercase and canonical: a file inside it is known by its place
+/// in it, so moving that folder elsewhere keeps every id (and with it the progress and notes).
+pub(crate) static DOWNLOADS: Mutex<Option<String>> = Mutex::new(None);
+
 /// The id of a file: by its path (the same file keeps its progress after being changed).
 pub fn id_of(path: &Path) -> u64 {
     let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let text = canonical.to_string_lossy().trim_start_matches(r"\\?\").to_lowercase();
-    LOCAL_BASE + (fnv(text.as_bytes()) & ((1 << 40) - 1))
+    let key = match DOWNLOADS.lock().unwrap().as_deref() {
+        Some(root) if text.len() > root.len() && text.starts_with(root) && text[root.len()..].starts_with('\\') => {
+            format!("descargas:{}", &text[root.len() + 1..])
+        }
+        _ => text,
+    };
+    LOCAL_BASE + (fnv(key.as_bytes()) & ((1 << 40) - 1))
+}
+
+/// `path` with `from` at its start changed for `to` (case does not matter, as in Windows), if it starts so.
+fn moved(path: &str, from: &str, to: &str) -> Option<String> {
+    let (lower, from_lower) = (path.to_lowercase(), from.to_lowercase());
+    let rest = lower.strip_prefix(&from_lower)?;
+    if !(rest.is_empty() || rest.starts_with('\\') || rest.starts_with('/')) {
+        return None;
+    }
+    Some(format!("{}{}", to.trim_end_matches(['\\', '/']), &path[path.len() - rest.len()..]))
+}
+
+/// The downloads folder moved from `from` to `to` (place.rs): the shelf's files and folders that were in it
+/// are at the same place in the new one (their ids do not change, see `id_of`).
+pub(crate) fn relocate<R: Runtime>(app: &AppHandle<R>, from: &str, to: &str) -> Result<(), String> {
+    let shelf = app.state::<Shelf>();
+    with_config(app, &shelf, |c| {
+        for f in c.files.iter_mut() {
+            if let Some(m) = moved(f, from, to) {
+                *f = m;
+            }
+        }
+        for r in c.roots.iter_mut() {
+            if let Some(m) = moved(&r.path, from, to) {
+                r.path = m;
+            }
+        }
+    })?;
+    for (path, _) in shelf.known.lock().unwrap().values_mut() {
+        if let Some(m) = moved(&path.to_string_lossy(), from, to) {
+            *path = PathBuf::from(m);
+        }
+    }
+    FILE_PAGES.lock().unwrap().take();
+    Ok(())
 }
 
 fn clean_path(path: &Path) -> String {
@@ -186,6 +231,11 @@ fn container_of(path: &Path, format: &str) -> String {
         }
     }
     container_by_head(&head[..n]).unwrap_or(format).to_string()
+}
+
+/// What a file really is (see `container_of`), for offline.rs.
+pub(crate) fn container(path: &Path, format: &str) -> String {
+    container_of(path, format)
 }
 
 fn container_by_head(head: &[u8]) -> Option<&'static str> {
@@ -554,6 +604,123 @@ fn unpack(path: &Path, format: &str, dir: &Path) -> Result<usize, String> {
         fs::rename(tmp, pages.join(format!("{n}.{ext}"))).map_err(|e| e.to_string())?;
     }
     Ok(names.len())
+}
+
+/// The pages of a comic archive (cbz, cbr, cb7 or cbt, by what it really is) written as `pages/<n>.<ext>`,
+/// in the order the reader shows them, a JPEG XL page made JPEG (WebView2 cannot show it); how many.
+/// For the copies kept offline (offline.rs): the file comes once, instead of every page rendered by the service.
+pub(crate) fn unpack_pages(path: &Path, format: &str, pages: &Path) -> Result<usize, String> {
+    let format = container_of(path, format);
+    let _ = fs::remove_dir_all(pages);
+    let write = |n: usize, name: &str, data: &[u8]| -> Result<(), String> {
+        let ext = image_ext(name).unwrap_or_else(|| "jpg".into());
+        fs::write(pages.join(format!("{n}.{ext}")), data).map_err(|e| e.to_string())
+    };
+    let count = match format.as_str() {
+        "cbz" => {
+            fs::create_dir_all(pages).map_err(|e| e.to_string())?;
+            let names = zip_pages(path)?;
+            let mut zip = open_zip(path)?;
+            for (n, name) in names.iter().enumerate() {
+                let mut data = vec![];
+                zip.by_name(name).map_err(|e| e.to_string())?.read_to_end(&mut data).map_err(|e| e.to_string())?;
+                write(n, name, &data)?;
+            }
+            names.len()
+        }
+        "cbt" => {
+            fs::create_dir_all(pages).map_err(|e| e.to_string())?;
+            let list = tar_pages(path)?;
+            for (n, page) in list.iter().enumerate() {
+                write(n, &page.name, &tar_read(path, page, None)?)?;
+            }
+            list.len()
+        }
+        "cbr" | "cb7" => {
+            let aside = pages.with_extension("unpack");
+            let count = unpack(path, &format, &aside)?;
+            fs::rename(aside.join("p"), pages).map_err(|e| e.to_string())?;
+            let _ = fs::remove_dir_all(&aside);
+            count
+        }
+        other => return Err(format!("{other} no es un archivo de cómic")),
+    };
+    if count == 0 {
+        return Err("no tiene imágenes".into());
+    }
+    for n in 0..count {
+        if let Some(p) = find(pages, &n.to_string()).filter(|p| p.extension().is_some_and(|e| e == "jxl")) {
+            let data = fs::read(&p).map_err(|e| e.to_string())?;
+            fs::write(pages.join(format!("{n}.jpg")), jpeg(&decode(&data)?, 90)?).map_err(|e| e.to_string())?;
+            let _ = fs::remove_file(&p);
+        }
+    }
+    Ok(count)
+}
+
+// ---- the files of the copies kept offline (offline.rs): their pages read from the file itself ----
+
+/// A comic archive's pages as listed once (entry names of a zip, places inside a tar), by the file.
+static FILE_PAGES: Mutex<Option<HashMap<PathBuf, FilePages>>> = Mutex::new(None);
+
+#[derive(Clone)]
+enum FilePages {
+    Zip(Vec<String>),
+    Tar(Vec<TarPage>),
+}
+
+fn listed_pages(path: &Path, format: &str) -> Result<FilePages, String> {
+    if let Some(found) = FILE_PAGES.lock().unwrap().get_or_insert_with(HashMap::new).get(path) {
+        return Ok(found.clone());
+    }
+    let pages = match format {
+        "cbz" => FilePages::Zip(zip_pages(path)?),
+        "cbt" => FilePages::Tar(tar_pages(path)?),
+        other => return Err(format!("{other}: sus páginas no se leen así")),
+    };
+    FILE_PAGES.lock().unwrap().get_or_insert_with(HashMap::new).insert(path.to_path_buf(), pages.clone());
+    Ok(pages)
+}
+
+/// Forgets what was read of a file that is gone (or replaced).
+pub(crate) fn forget_file(path: &Path) {
+    if let Some(map) = FILE_PAGES.lock().unwrap().as_mut() {
+        map.remove(path);
+    }
+}
+
+/// How many pages a cbz, a cbt or a PDF has (its real format by its first bytes).
+pub(crate) fn file_page_count<R: Runtime>(app: &AppHandle<R>, path: &Path, format: &str) -> Result<usize, String> {
+    match container_of(path, format).as_str() {
+        "pdf" => Ok(pdf_info(pdfium(app)?, path)?.0),
+        other => Ok(match listed_pages(path, other)? {
+            FilePages::Zip(names) => names.len(),
+            FilePages::Tar(pages) => pages.len(),
+        }),
+    }
+}
+
+/// Page `n` of a cbz or a cbt as it is (a JPEG XL one made JPEG: WebView2 cannot show it), or of a PDF
+/// rendered `width` wide.
+pub(crate) fn file_page<R: Runtime>(app: &AppHandle<R>, path: &Path, format: &str, n: usize, width: u32) -> Result<(Vec<u8>, &'static str), String> {
+    let format = container_of(path, format);
+    if format == "pdf" {
+        return Ok((pdf_render(pdfium(app)?, path, n, width.clamp(300, 3200))?, "image/jpeg"));
+    }
+    let (data, ext) = match listed_pages(path, &format)? {
+        FilePages::Zip(names) => {
+            let name = names.get(n).ok_or("esa página no existe")?;
+            (zip_read(path, name, None)?, image_ext(name).unwrap_or_default())
+        }
+        FilePages::Tar(pages) => {
+            let page = pages.get(n).ok_or("esa página no existe")?;
+            (tar_read(path, page, None)?, image_ext(&page.name).unwrap_or_default())
+        }
+    };
+    if ext == "jxl" || is_jxl(&data) {
+        return Ok((jpeg(&decode(&data)?, 90)?, "image/jpeg"));
+    }
+    Ok((data, mime_of(&ext)))
 }
 
 /// The file of `dir` whose name, without its extension, is `stem`.
@@ -1203,16 +1370,34 @@ struct Counted<'a, F: FnMut(u64)> {
     data: &'a [u8],
     at: usize,
     tell: F,
+    /// the file whose upload this is: asked to stop, the piece is cut
+    id: u64,
 }
 
 impl<F: FnMut(u64)> Read for Counted<'_, F> {
     fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        if upload_stopped(self.id) {
+            return Err(std::io::Error::other("cancelada"));
+        }
         let n = (self.data.len() - self.at).min(out.len()).min(1 << 16);
         out[..n].copy_from_slice(&self.data[self.at..self.at + n]);
         self.at += n;
         (self.tell)(self.at as u64);
         Ok(n)
     }
+}
+
+/// The uploads asked to stop (by the file's id), until they see it.
+static UPLOAD_STOP: Mutex<Option<std::collections::HashSet<u64>>> = Mutex::new(None);
+
+fn upload_stopped(id: u64) -> bool {
+    UPLOAD_STOP.lock().unwrap().as_ref().is_some_and(|set| set.contains(&id))
+}
+
+/// Stops the upload of that file going on: the piece going is cut and the service forgets what it got.
+#[tauri::command]
+pub fn shelf_upload_cancel(id: u64) {
+    UPLOAD_STOP.lock().unwrap().get_or_insert_with(Default::default).insert(id);
 }
 
 #[derive(Serialize, Clone)]
@@ -1226,8 +1411,21 @@ struct UploadProgress {
 /// service, a piece at a time: requests through Cloudflare carry at most 100 MB); the new item.
 #[tauri::command]
 pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, authorization: String, dest: String) -> Result<Value, String> {
+    if let Some(set) = UPLOAD_STOP.lock().unwrap().as_mut() {
+        set.remove(&id);            // a stop asked of an earlier upload of it is not this one's
+    }
     tauri::async_runtime::spawn_blocking(move || {
-        let (path, _) = known(&app, id)?;
+        let outcome = upload_file(&app, id, &base, &authorization, &dest);
+        if let Some(set) = UPLOAD_STOP.lock().unwrap().as_mut() {
+            set.remove(&id);
+        }
+        outcome
+    }).await.map_err(|e| e.to_string())?
+}
+
+fn upload_file<R: Runtime>(app: &AppHandle<R>, id: u64, base: &str, authorization: &str, dest: &str) -> Result<Value, String> {
+    {
+        let (path, _) = known(app, id)?;
         let total = fs::metadata(&path).map_err(|e| e.to_string())?.len();
         let agent = ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(15)).timeout_read(Duration::from_secs(900)).build();
         let base = base.trim_end_matches('/');
@@ -1247,7 +1445,12 @@ pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, 
         let mut file = fs::File::open(&path).map_err(|e| e.to_string())?;
         let mut sent: u64 = 0;
         let mut buf = vec![0u8; chunk];
+        let forget = || { let _ = agent.delete(&format!("{base}/api/uploads/{upload}")).set("Authorization", authorization).call(); };
         while sent < total {
+            if upload_stopped(id) {
+                forget();
+                return Err("cancelada".into());
+            }
             let mut filled = 0;
             while filled < chunk {
                 let got = file.read(&mut buf[filled..]).map_err(|e| e.to_string())?;
@@ -1261,7 +1464,7 @@ pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, 
                 // how it goes, told as the bytes leave (not only per piece: a small file would jump from 0 to 100)
                 let from = sent;
                 let mut told = Instant::now();
-                let body = Counted { data: &buf[..filled], at: 0, tell: |at: u64| {
+                let body = Counted { data: &buf[..filled], at: 0, id, tell: |at: u64| {
                     if told.elapsed() >= Duration::from_millis(250) {
                         told = Instant::now();
                         let _ = app.emit("shelf-upload", UploadProgress { id, sent: from + at, total });
@@ -1270,6 +1473,10 @@ pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, 
                 match agent.put(&format!("{base}/api/uploads/{upload}?offset={sent}")).set("Authorization", &authorization)
                     .set("Content-Type", "application/octet-stream").set("Content-Length", &filled.to_string()).send(body) {
                     Ok(_) => break,
+                    Err(_) if upload_stopped(id) => {
+                        forget();
+                        return Err("cancelada".into());
+                    }
                     Err(ureq::Error::Status(409, _)) | Err(ureq::Error::Status(413, _)) if attempt > 1 => break,
                     Err(e) if attempt >= 4 => {
                         let _ = agent.delete(&format!("{base}/api/uploads/{upload}")).set("Authorization", &authorization).call();
@@ -1284,7 +1491,7 @@ pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, 
         let done: Value = agent.post(&format!("{base}/api/uploads/{upload}/finish")).set("Authorization", &authorization)
             .call().map_err(fail)?.into_string().ok().and_then(|t| serde_json::from_str(&t).ok()).ok_or("el servicio no acabó la subida")?;
         Ok(done)
-    }).await.map_err(|e| e.to_string())?
+    }
 }
 
 #[cfg(test)]

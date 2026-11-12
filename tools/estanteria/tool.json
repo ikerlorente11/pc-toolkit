@@ -4,7 +4,7 @@
   "icon": "E82D",
   "summary": "Lee tus cómics y libros",
   "category": "Apps",
-  "description": "Lector de cómics, manga y libros (cbz, cbr, pdf, epub…) de la carpeta Lectura de tu Archivador, con la misma biblioteca y el mismo progreso que la web y el móvil: seguir leyendo, series, notas y marcadores. Instala la app de escritorio La Estantería (se descarga de las releases de PC Toolkit) y la abre con un atajo de teclado; los cómics y epub del Explorador se abren con ella.",
+  "description": "Lector de cómics, manga y libros (cbz, cbr, cb7, pdf, djvu, epub, mobi, fb2…) de tus carpetas de este PC, de catálogos y de bibliotecas (tu Archivador, OPDS, Komga, Kavita, WebDAV, Suwayomi), con el progreso, las notas y los marcadores sincronizados con tu Archivador. Descarga para leer sin conexión en la carpeta que elijas. Instala la app de escritorio La Estantería (se descarga de las releases de PC Toolkit) y la abre con un atajo de teclado; los cómics y libros del Explorador se abren con ella.",
   "installNote": "Descarga e instala la app La Estantería para el usuario actual, sin permisos de administrador.",
   "task": "PcToolkitEstanteria",
   "log": "Estanteria.log",

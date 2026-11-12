@@ -21,7 +21,7 @@ solo Everything pide permisos de administrador, una vez, para su servicio de ind
 | **Everything** | Con **Ctrl + Alt + F** abre una ventana para buscar cualquier archivo o carpeta del PC por su nombre al instante, con el índice de [Everything](https://www.voidtools.com) (voidtools). Abre el resultado, su carpeta o copia su ruta sin tocar el ratón. |
 | **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Modo juegos** | Los emuladores (KytyPS5...) van mucho más lentos con el hipervisor de Windows (Hyper-V/VBS), que WSL2 y Docker necesitan. Crea una entrada de arranque sin hipervisor ni VBS: se cambia de modo desde su tarjeta o desde el aviso que sale al abrir un emulador (y al abrir Docker o WSL en modo juegos, ofrece volver). El modo se mantiene en cada reinicio hasta que lo cambies. Pide administrador una sola vez, al instalarla. |
-| **La Estantería** | Lector de cómics, manga y libros (cbz, cbr, pdf, epub, mobi, fb2…) de la carpeta Lectura de tu [Archivador](https://github.com/ikerlorente11/estanteria), con la misma biblioteca, progreso, notas y marcadores que la web y el móvil. **Ctrl + Alt + L** la abre; los cómics y libros del Explorador se abren con ella. |
+| **La Estantería** | Lector de cómics, manga y libros (cbz, cbr, cb7, pdf, djvu, epub, mobi, fb2…) de tus carpetas, de catálogos y de bibliotecas ([tu Archivador](https://github.com/ikerlorente11/estanteria), OPDS, Komga, Kavita, WebDAV, Suwayomi), con el progreso, notas y marcadores sincronizados con la web y el móvil. **Ctrl + Alt + L** la abre; los cómics y libros del Explorador se abren con ella. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **LocalSend** | Pasa archivos entre el PC, el móvil y otros ordenadores de la red local, sin cuenta ni Internet, con [LocalSend](https://localsend.org). Lo deja en la bandeja para recibir y lo añade al menú **Enviar a** del Explorador. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
@@ -138,11 +138,22 @@ En su página de ajustes:
   cómics cbz, cbr, cb7 y cbt (páginas jpg, png, webp, gif, avif, bmp y jxl; el jxl se pasa a jpg), pdf, djvu/djv
   y libros epub, mobi/azw/azw3, fb2, fbz (o `.fb2.zip`) y txt, con su portada. El instalador asocia cbz, cbr, cb7, cbt,
   djvu, djv, epub, mobi, azw, azw3, fb2 y fbz (pdf como alternativa; txt no, para no quitársela al Bloc de notas).
-- Al abrirla por primera vez pide la dirección del servicio, el usuario y una **contraseña de aplicación** de
-  El Archivador; la contraseña va al almacén de credenciales de Windows.
+- Es un lector local por defecto: sin conectar nada lee los archivos de este PC. En «Bibliotecas → Añadir» se conecta
+  El Archivador (dirección, usuario y una **contraseña de aplicación**, que va al almacén de credenciales de Windows;
+  una dirección que no responde no se guarda) y, en Catálogos, catálogos públicos, OPDS y las fuentes de Suwayomi
+  (eligiendo qué idiomas de cada extensión se ven).
+- Descargas: una carpeta a elegir en Ajustes (por defecto `Descargas\La Estantería`). Lo de los catálogos va en
+  `<serie>/`, las copias para leer sin conexión en `<nombre de la biblioteca>/<su carpeta en El Archivador>/`: un
+  cómic o un PDF baja entero (varios a la vez, se pueden cancelar) y las páginas se sacan o se pintan aquí. Lo que
+  solo usa la app (fichas, portadas, páginas preparadas) queda en `%LOCALAPPDATA%\com.ikerlorente11.estanteria\offline`.
+  Al cambiar de carpeta se mueve todo (las ids, y con ellas el progreso, no cambian).
+- Subir a El Archivador una carpeta de este PC: solo lo que falta allí (se mira antes), varios a la vez, en la carpeta
+  de su serie; se puede cancelar.
 - El CI compila el instalador en Windows cuando cambia `tools/estanteria/app` y, con una etiqueta `estanteria-v<versión>`,
   lo publica en Releases; la herramienta descarga la última release y la instala para el usuario actual (sin admin).
-  Para publicar una versión nueva: subir `version` en `src-tauri/tauri.conf.json` y `package.json`, y etiquetar.
+  Para publicar una versión nueva: subir `version` en `src-tauri/tauri.conf.json`, `package.json`, `Cargo.toml` y
+  `Cargo.lock`, mover el visor (`estanteria-viewer` en `package.json` y `pnpm-lock.yaml`) al commit del repo estanteria
+  y añadir sus novedades a `viewer/src/lib/changelog.ts` (las enseña Ajustes → Acerca de), y etiquetar.
 - Desarrollo: `cd tools/estanteria/app && pnpm install && pnpm tauri dev` (hace falta Rust y las herramientas de
   compilación de C++ de Visual Studio); solo la parte web, `pnpm dev` en el navegador.
 
