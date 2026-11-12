@@ -179,7 +179,8 @@ function makeStore(server: boolean): Store {
   current = server ? new Api(connection.url, () => Api.basic(connection.username, token.value)) : Api.onDevice()
   let keeper = server ? keeperFor() : keepers.get('')
   if (!keeper) { keeper = new Offline(desktopBackend('local', () => '', () => '')); keepers.set('', keeper) }
-  keeper.attach(current)
+  // what waits to be sent is this account's (`local` without a server): never sent to another one
+  keeper.attach(current, server ? accountKey(connection.username, connection.url) : 'local')
   keeper.shelf = shelf
   offline.value = keeper
   const covers = new ImageCache(current, 400)
