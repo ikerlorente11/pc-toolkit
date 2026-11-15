@@ -1,12 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2b2f77"/>
-      <stop offset="1" stop-color="#14163a"/>
-    </linearGradient>
-  </defs>
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
-  <circle cx="356" cy="320" r="150" fill="#ffb547" opacity="0.18"/>
-  <circle cx="356" cy="320" r="86" fill="#ffb547" opacity="0.28"/>
-  <path d="M356 300 L356 760 L470 650 L548 830 L630 794 L552 618 L712 610 Z" fill="#ffb547" stroke="#14163a" stroke-width="28" stroke-linejoin="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs>
+ <linearGradient id="vio" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b7bff"/><stop offset="0.55" stop-color="#5b45e6"/><stop offset="1" stop-color="#2a1d8f"/></linearGradient>
+ <linearGradient id="white" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e6e2ff"/></linearGradient>
+ <filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="22" stdDeviation="26" flood-color="#0b0630" flood-opacity="0.45"/></filter>
+ <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+</defs><clipPath id="r"><rect x="64" y="64" width="896" height="896" rx="210"/></clipPath><g clip-path="url(#r)"><g transform="translate(64 64) scale(0.875)"><rect width="1024" height="1024" fill="url(#vio)"/><circle cx="300" cy="260" r="420" fill="url(#glow)"/><circle cx="388" cy="300" r="150" fill="none" stroke="#ffffff" stroke-width="22" opacity="0.28"/><circle cx="388" cy="300" r="88" fill="none" stroke="#ffffff" stroke-width="22" opacity="0.55"/><g filter="url(#sh)"><g transform="translate(388 300) scale(0.78) rotate(-8)"><path d="M0 0 L0 560 L148 424 L246 640 L338 598 L242 386 L432 386 Z" fill="url(#white)" stroke="url(#white)" stroke-width="70" stroke-linejoin="round" /></g></g></g></g></svg>
