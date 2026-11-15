@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The window only talks to the app's own commands (status, devices, settings) and itself",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

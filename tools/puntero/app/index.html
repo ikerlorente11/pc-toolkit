@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>El Puntero</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/icon.png" alt="" width="40" height="40" />
+        <div>
+          <h1>El Puntero</h1>
+          <p id="state" class="state">Arrancando…</p>
+        </div>
+      </header>
+
+      <section class="card pair">
+        <h2>Emparejar un móvil</h2>
+        <p class="hint">Abre <b>El Puntero</b> en el móvil, pulsa <b>Añadir PC</b> y escanea este código.</p>
+        <div id="qr" class="qr" aria-label="Código QR para emparejar"></div>
+        <p class="hint">¿Sin cámara? Elige este PC en la lista del móvil y escribe el código:</p>
+        <p id="code" class="code" aria-label="Código de emparejado">······</p>
+        <p class="small">El código cambia cada 10 minutos y tras emparejar. Solo se puede emparejar con esta ventana abierta.</p>
+      </section>
+
+      <section class="card">
+        <h2>Móviles emparejados</h2>
+        <ul id="devices" class="devices"></ul>
+        <p id="no-devices" class="hint" hidden>Todavía ninguno.</p>
+      </section>
+
+      <section class="card">
+        <h2>Ajustes</h2>
+        <label class="row">
+          <span>Nombre de este PC en el móvil</span>
+          <input id="name" type="text" maxlength="40" spellcheck="false" />
+        </label>
+        <label class="row switch">
+          <span>Iniciar con Windows (en la bandeja)</span>
+          <input id="autostart" type="checkbox" role="switch" />
+        </label>
+        <p class="small" id="addresses"></p>
+        <details class="small">
+          <summary>¿El móvil no encuentra el PC?</summary>
+          <p>Los dos tienen que estar en la misma red wifi. La primera vez Windows pregunta si El Puntero puede usar la red:
+            permite el acceso en <b>redes privadas</b>. Si tu red está como «pública», cámbiala a privada en
+            Configuración › Red e Internet.</p>
+        </details>
+      </section>
+
+      <footer class="small">Cerrar la ventana deja El Puntero en la bandeja, atento al móvil. <span id="version"></span></footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

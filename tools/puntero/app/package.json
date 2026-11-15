@@ -1,0 +1,21 @@
+{
+  "name": "puntero-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "El Puntero para Windows: controla el ratón y el teclado del PC desde el móvil (app de escritorio de PC Toolkit, Tauri 2)",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.5.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.3.5"
+  }
+}

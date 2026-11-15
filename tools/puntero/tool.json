@@ -1,0 +1,12 @@
+{
+  "id": "puntero",
+  "name": "El Puntero",
+  "icon": "E962",
+  "summary": "Controla el PC desde el móvil",
+  "category": "Apps",
+  "description": "Usa el móvil como ratón y teclado del PC por la wifi: touchpad con gestos (clic, clic derecho, arrastrar, desplazar con inercia, zoom, cambiar de ventana), botones de ratón de verdad, modo aire (mueves el puntero girando el móvil, como un puntero láser), teclado en directo con dictado, multimedia y volumen, presentaciones, abrir y cerrar apps y ventanas, abrir webs, portapapeles y apagar o bloquear el PC. Instala la app de escritorio El Puntero (se descarga de las releases de PC Toolkit), que se queda en la bandeja; la app El Puntero de Android se empareja escaneando el QR de su ventana. Todo va cifrado por la red local.",
+  "installNote": "Descarga e instala la app El Puntero para el usuario actual, sin permisos de administrador. La primera vez Windows pregunta si puede usar la red: permítelo en redes privadas.",
+  "task": "PcToolkitPuntero",
+  "log": "Puntero.log",
+  "updates": true
+}

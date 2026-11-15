@@ -22,6 +22,7 @@ solo Everything pide permisos de administrador, una vez, para su servicio de ind
 | **Juegos** | Al abrir cada juego de la lista, desactiva el HDR de su pantalla mientras está abierto (los juegos sin HDR se ven lavados con él) y lo pone en ventana sin bordes ocupando justo la pantalla elegida: se ve como en pantalla completa, pero no se minimiza al pasar a otra pantalla. |
 | **Modo juegos** | Los emuladores (KytyPS5...) van mucho más lentos con el hipervisor de Windows (Hyper-V/VBS), que WSL2 y Docker necesitan. Crea una entrada de arranque sin hipervisor ni VBS: se cambia de modo desde su tarjeta o desde el aviso que sale al abrir un emulador (y al abrir Docker o WSL en modo juegos, ofrece volver). El modo se mantiene en cada reinicio hasta que lo cambies. Pide administrador una sola vez, al instalarla. |
 | **La Estantería** | Lector de cómics, manga y libros (cbz, cbr, cb7, pdf, djvu, epub, mobi, fb2…) de tus carpetas, de catálogos y de bibliotecas ([tu Archivador](https://github.com/ikerlorente11/estanteria), OPDS, Komga, Kavita, WebDAV, Suwayomi), con el progreso, notas y marcadores sincronizados con la web y el móvil. **Ctrl + Alt + L** la abre; los cómics y libros del Explorador se abren con ella. |
+| **El Puntero** | Usa el móvil como ratón y teclado del PC por la wifi, con la [app de Android](https://github.com/ikerlorente11/puntero): touchpad con gestos, botones de ratón, modo aire (mueves el puntero girando el móvil), teclado en directo con dictado, multimedia y volumen, presentaciones, ventanas y apps, webs y apagar o bloquear el PC. Se empareja con un QR y va cifrado. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **LocalSend** | Pasa archivos entre el PC, el móvil y otros ordenadores de la red local, sin cuenta ni Internet, con [LocalSend](https://localsend.org). Lo deja en la bandeja para recibir y lo añade al menú **Enviar a** del Explorador. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
@@ -79,7 +80,7 @@ defecto, arranca con Windows.
 
 ### Actualizaciones
 
-PC Toolkit y los programas que instalan algunas herramientas (**La Estantería**, **LocalSend** y
+PC Toolkit y los programas que instalan algunas herramientas (**La Estantería**, **El Puntero**, **LocalSend** y
 **Everything**) se actualizan cada uno por su lado, sin reinstalar nada:
 
 - El gestor busca versiones nuevas en segundo plano, sin congelar el panel: un minuto y medio después de
@@ -188,6 +189,32 @@ En su página de ajustes:
   y añadir sus novedades a `viewer/src/lib/changelog.ts` (las enseña Ajustes → Acerca de), y etiquetar.
 - Desarrollo: `cd tools/estanteria/app && pnpm install && pnpm tauri dev` (hace falta Rust y las herramientas de
   compilación de C++ de Visual Studio); solo la parte web, `pnpm dev` en el navegador.
+
+### El Puntero
+
+- App de escritorio propia (`tools/puntero/app`, Tauri 2) que vive en la bandeja y deja que el móvil, con la app
+  [El Puntero](https://github.com/ikerlorente11/puntero) de Android, controle el ratón y el teclado del PC por la red
+  local: touchpad con gestos, botones, modo aire (giroscopio), teclado en directo, multimedia y volumen, ventanas y
+  apps, webs, portapapeles y encendido. El protocolo está en `PROTOCOL.md` del repo puntero.
+- **Emparejar**: su ventana (botón Emparejar de la portada, o el icono de la bandeja) enseña un QR y un código de 6
+  cifras; el móvil escanea el QR o, si encuentra el PC en la red, pide el código. Solo se puede emparejar con la
+  ventana abierta, y el código cambia cada 10 minutos, tras emparejar y tras 5 intentos fallidos. Los móviles
+  emparejados se quitan desde la misma ventana (el que esté conectado se desconecta al momento).
+- Todo va cifrado (NaCl secretbox, XSalsa20-Poly1305) con una clave por móvil: lo que se escribe, contraseñas
+  incluidas, no viaja en claro. Escucha en el puerto 47810 (TCP); la primera vez Windows pregunta si puede usar la
+  red: hay que permitirlo en **redes privadas**.
+- El puntero va a posiciones absolutas (donde está más lo que se mueve el dedo), así que no le suma la aceleración
+  de Windows a la del móvil. Si el móvil se desconecta con un botón o una tecla pulsados, se sueltan solos.
+  No puede controlar ventanas que se ejecutan como administrador (Windows no deja), ni la pantalla de bloqueo.
+- La tarea la arranca oculta al iniciar sesión (quita el «Iniciar con Windows» propio de la app, que es para quien
+  la instala sin PC Toolkit); al desactivar la herramienta se cierra. Datos: `%APPDATA%\com.ikerlorente11.puntero\puntero.json`
+  (id del PC, puerto y móviles emparejados con sus claves).
+- El CI compila el instalador cuando cambia `tools/puntero/app` y, con una etiqueta `puntero-v<versión>`, lo publica en
+  Releases. Para publicar una versión nueva: subir `version` en `src-tauri/tauri.conf.json`, `package.json`,
+  `Cargo.toml` y `Cargo.lock`, y etiquetar. Actualizarla la cierra y la vuelve a arrancar en la bandeja.
+- Desarrollo: `cd tools/puntero/app && pnpm install && pnpm tauri dev`; tests `cargo test --lib` en `src-tauri`.
+  Con un build de depuración, `PUNTERO_DEV_LINK=<archivo>` deja el emparejado abierto y escribe ahí el enlace del QR
+  (y el código en `<archivo>.code`), para los tests de extremo a extremo del repo puntero.
 
 ### Juegos
 

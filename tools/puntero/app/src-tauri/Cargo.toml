@@ -1,0 +1,61 @@
+[package]
+name = "el-puntero"
+version = "0.1.0"
+description = "El Puntero: controla el ratón y el teclado de este PC desde el móvil"
+authors = ["Iker Lorente"]
+license = "PolyForm-Noncommercial-1.0.0"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "el_puntero_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# the phone's connection: a small HTTP server (GET /info to be found on the network) and a WebSocket
+axum = { version = "0.8", default-features = false, features = ["http1", "ws", "tokio", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros", "process"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+# every message after the handshake goes in a NaCl secretbox (XSalsa20-Poly1305), the same one tweetnacl
+# opens on the phone: what is typed (passwords too) never crosses the network in the clear
+crypto_secretbox = "0.1"
+sha2 = "0.10"
+getrandom = "0.3"
+base64 = "0.22"
+hex = "0.4"
+# the pairing QR, drawn as SVG for the window
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+# this PC's addresses on the local network, for the QR
+if-addrs = "0.13"
+arboard = { version = "3", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_System_Com",
+  "Win32_System_Power",
+  "Win32_System_Shutdown",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
