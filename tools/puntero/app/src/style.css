@@ -57,3 +57,10 @@ button:hover { border-color: var(--warn); color: var(--warn); }
 .switch input { width: 36px; height: 20px; accent-color: var(--accent); }
 details summary { cursor: pointer; margin-top: 6px; }
 footer { text-align: center; padding-bottom: 8px; }
+.alert { border-color: var(--warn); }
+.alert p { margin: 0 0 10px; line-height: 1.4; }
+.alert-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alert-row .small { margin: 0; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; padding: 6px 12px; }
+button.primary:hover { color: var(--bg); border-color: var(--accent); filter: brightness(1.1); }
+button:disabled { opacity: .6; cursor: default; }

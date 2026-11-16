@@ -1,6 +1,6 @@
 {
   "name": "puntero-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "El Puntero para Windows: controla el ratón y el teclado del PC desde el móvil (app de escritorio de PC Toolkit, Tauri 2)",
   "license": "PolyForm-Noncommercial-1.0.0",

@@ -1,6 +1,6 @@
 [package]
 name = "el-puntero"
-version = "0.1.0"
+version = "0.1.1"
 description = "El Puntero: controla el ratón y el teclado de este PC desde el móvil"
 authors = ["Iker Lorente"]
 license = "PolyForm-Noncommercial-1.0.0"

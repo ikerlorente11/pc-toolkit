@@ -201,8 +201,11 @@ En su página de ajustes:
   ventana abierta, y el código cambia cada 10 minutos, tras emparejar y tras 5 intentos fallidos. Los móviles
   emparejados se quitan desde la misma ventana (el que esté conectado se desconecta al momento).
 - Todo va cifrado (NaCl secretbox, XSalsa20-Poly1305) con una clave por móvil: lo que se escribe, contraseñas
-  incluidas, no viaja en claro. Escucha en el puerto 47810 (TCP); la primera vez Windows pregunta si puede usar la
-  red: hay que permitirlo en **redes privadas**.
+  incluidas, no viaja en claro. Escucha en el puerto 47810 (TCP); si Windows lo tiene reservado (Hyper-V, WSL y
+  Docker reservan bloques de miles de puertos al arrancar, sin que `netstat` los enseñe), pasa al 27810, al 37810 o
+  al que dé Windows, y se queda con ese (el QR lleva el puerto, y el móvil busca en los tres). La primera vez Windows
+  pregunta si puede usar la red: hay que permitirlo. Si el firewall no deja entrar al móvil en la red actual (red
+  «pública», o se cerró esa pregunta), la ventana lo avisa con un botón para permitirlo (pide administrador).
 - El puntero va a posiciones absolutas (donde está más lo que se mueve el dedo), así que no le suma la aceleración
   de Windows a la del móvil. Si el móvil se desconecta con un botón o una tecla pulsados, se sueltan solos.
   No puede controlar ventanas que se ejecutan como administrador (Windows no deja), ni la pantalla de bloqueo.

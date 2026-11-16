@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 interface Device { id: string; name: string; added: number; last_seen: number; connected: boolean }
 interface Status {
-  version: string; name: string; computer: string; port: number; listening: boolean; error: string | null
+  version: string; name: string; computer: string; port: number; listening: boolean; error: string | null; firewall: string | null
   addresses: string[]; code: string; qr: string; link: string; devices: Device[]; autostart: boolean
 }
 
@@ -33,6 +33,8 @@ function render(s: Status) {
       ? `Controlado desde ${connected.map(d => d.name).join(', ')}`
       : s.addresses.length ? 'Listo, esperando al móvil' : 'Listo, pero sin red: conéctate a la wifi'
   }
+  $('firewall').hidden = !s.firewall || !s.listening
+  if (s.firewall) $('firewall-text').textContent = s.firewall
   if (s.qr !== lastQr) { $('qr').innerHTML = s.qr; lastQr = s.qr }
   $('code').textContent = s.code.replace(/^(\d{3})(\d{3})$/, '$1 $2')
 
@@ -72,6 +74,21 @@ $<HTMLInputElement>('name').addEventListener('change', async e => {
   await invoke('set_name', { name: (e.target as HTMLInputElement).value })
   nameEdited = false
   refresh()
+})
+$<HTMLButtonElement>('firewall-fix').addEventListener('click', async e => {
+  const button = e.currentTarget as HTMLButtonElement
+  const note = $('firewall-note')
+  button.disabled = true
+  note.textContent = 'Esperando el permiso de Windows…'
+  try {
+    await invoke('allow_firewall')
+    note.textContent = 'Hecho. Comprobando…'
+  } catch (err) {
+    note.textContent = String(err)
+  } finally {
+    button.disabled = false
+    setTimeout(refresh, 3500)
+  }
 })
 $<HTMLInputElement>('autostart').addEventListener('change', async e => {
   try { await invoke('set_autostart', { on: (e.target as HTMLInputElement).checked }) } finally { refresh() }

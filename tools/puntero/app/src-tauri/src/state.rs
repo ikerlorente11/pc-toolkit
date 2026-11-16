@@ -10,6 +10,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub const DEFAULT_PORT: u16 = 47810;
+/// Where the phone looks for PCs (the same list as PORTS in the phone app's src/core/link.ts): the usual
+/// port and two far from it, for when Windows has it reserved (see server.rs).
+pub const PORTS: [u16; 3] = [DEFAULT_PORT, 27810, 37810];
 /// Pairing is open while the window is on screen (it asks for the status every few seconds) and a
 /// little after.
 const PAIRING_OPEN_FOR: Duration = Duration::from_secs(20);
@@ -132,6 +135,13 @@ impl State {
         (p.code.clone(), p.secret)
     }
 
+    /// The current code and QR key, without opening pairing (the window is hidden or minimized).
+    pub fn pairing_current(&self) -> (String, SecretKey) {
+        let mut p = self.pairing.lock().unwrap();
+        if p.created.elapsed() > PAIRING_LIFETIME { *p = Pairing::new(); }
+        (p.code.clone(), p.secret)
+    }
+
     pub fn pairing_open(&self) -> bool {
         let p = self.pairing.lock().unwrap();
         p.open_until.map(|t| Instant::now() < t).unwrap_or(false) && p.created.elapsed() <= PAIRING_LIFETIME
@@ -230,6 +240,8 @@ mod tests {
     fn pairing_only_while_shown() {
         let state = temp_state();
         assert!(state.pairing_key(PairVia::Qr).is_none());
+        state.pairing_current();
+        assert!(!state.pairing_open());
         let (code, secret) = state.pairing_shown();
         assert_eq!(code.len(), 6);
         assert_eq!(state.pairing_key(PairVia::Qr), Some(secret));

@@ -6,6 +6,8 @@
 //! (volume, windows, apps, power), state.rs remembers the paired phones, crypto.rs seals every message.
 
 mod crypto;
+#[cfg(windows)]
+mod firewall;
 mod input;
 mod keys;
 mod protocol;
@@ -38,6 +40,8 @@ struct Status {
     port: u16,
     listening: bool,
     error: Option<String>,
+    /// why the phone may not get through the firewall, if so
+    firewall: Option<String>,
     addresses: Vec<String>,
     code: String,
     qr: String,
@@ -107,7 +111,13 @@ fn qr_svg(text: &str) -> String {
 
 #[tauri::command]
 fn status(app: AppHandle, state: tauri::State<'_, Arc<State>>) -> Status {
-    let (code, secret) = state.pairing_shown();
+    // pairing opens only while the window is really on screen: hidden in the tray, the page inside it
+    // keeps asking (to the WebView it is still "visible")
+    let on_screen = app
+        .get_webview_window("main")
+        .map(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
+        .unwrap_or(false);
+    let (code, secret) = if on_screen { state.pairing_shown() } else { state.pairing_current() };
     let server = state.server.lock().unwrap().clone();
     let config = state.config.lock().unwrap().clone();
     let addresses = addresses();
@@ -132,6 +142,7 @@ fn status(app: AppHandle, state: tauri::State<'_, Arc<State>>) -> Status {
         port: config.port,
         listening: server.is_ok(),
         error: server.err(),
+        firewall: firewall_warning(),
         qr: qr_svg(&link),
         link,
         addresses,
@@ -139,6 +150,20 @@ fn status(app: AppHandle, state: tauri::State<'_, Arc<State>>) -> Status {
         devices,
         autostart: app.autolaunch().is_enabled().unwrap_or(false),
     }
+}
+
+#[cfg(windows)]
+fn firewall_warning() -> Option<String> { firewall::warning() }
+#[cfg(not(windows))]
+fn firewall_warning() -> Option<String> { None }
+
+/// Adds the firewall rule (Windows asks for an administrator, so it can take a while).
+#[tauri::command]
+async fn allow_firewall() -> Result<(), String> {
+    #[cfg(windows)]
+    return tauri::async_runtime::spawn_blocking(firewall::allow).await.map_err(|e| e.to_string())?;
+    #[cfg(not(windows))]
+    Ok(())
 }
 
 #[tauri::command]
@@ -176,7 +201,7 @@ pub fn run() {
             if !argv.iter().any(|a| a == "--hidden") { show(app); }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
-        .invoke_handler(tauri::generate_handler![status, remove_device, set_name, set_autostart])
+        .invoke_handler(tauri::generate_handler![status, allow_firewall, remove_device, set_name, set_autostart])
         .setup(move |app| {
             let dir = app.path().app_config_dir().expect("the app's config folder");
             let state = Arc::new(State::load(dir.join("puntero.json")));
@@ -204,6 +229,8 @@ pub fn run() {
             }
 
             tauri::async_runtime::spawn(server::run(state));
+            #[cfg(windows)]
+            firewall::refresh();
 
             let open = MenuItem::with_id(app, "open", "Abrir El Puntero", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;

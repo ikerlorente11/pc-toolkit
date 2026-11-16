@@ -8,7 +8,7 @@
 use crate::crypto::{self, SecretKey};
 use crate::input::{Injector, Sink};
 use crate::protocol::{self, Button, Command, Event, Hello, HelloBox, PairVia, Press};
-use crate::state::State;
+use crate::state::{State, PORTS};
 use crate::system;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, State as Shared};
@@ -28,19 +28,50 @@ use tokio::time::timeout;
 /// whatever it held pressed is let go.
 const IDLE: Duration = Duration::from_secs(20);
 
+/// The ports to try, in order: the one this PC used last, then the usual ones (the phone's network scan
+/// looks on those), then whichever Windows gives. A port can be taken without any program showing it:
+/// Hyper-V, WSL and Docker reserve blocks of thousands of ports at startup, a different block each time.
+fn candidate_ports(saved: u16) -> Vec<u16> {
+    let mut ports = vec![saved];
+    for port in PORTS { if !ports.contains(&port) { ports.push(port) } }
+    ports.push(0);
+    ports
+}
+
+async fn bind(state: &State) -> Result<(tokio::net::TcpListener, u16), String> {
+    let saved = state.config.lock().unwrap().port;
+    let mut first_error = None;
+    for port in candidate_ports(saved) {
+        match tokio::net::TcpListener::bind(("0.0.0.0", port)).await {
+            Ok(listener) => {
+                let port = listener.local_addr().map(|a| a.port()).unwrap_or(port);
+                return Ok((listener, port));
+            }
+            Err(e) => { first_error.get_or_insert(format!("No se puede usar el puerto {port}: {e}")); }
+        }
+    }
+    Err(first_error.unwrap_or_else(|| "No se puede abrir ningún puerto".into()))
+}
+
 pub async fn run(state: Arc<State>) {
-    let port = state.config.lock().unwrap().port;
     let app = Router::new()
         .route("/info", get(info))
         .route("/ws", get(upgrade))
         .with_state(state.clone());
-    let listener = match tokio::net::TcpListener::bind(("0.0.0.0", port)).await {
-        Ok(listener) => listener,
-        Err(e) => {
-            *state.server.lock().unwrap() = Err(format!("No se puede usar el puerto {port}: {e}"));
-            return;
+    let (listener, port) = loop {
+        match bind(&state).await {
+            Ok(found) => break found,
+            Err(e) => {
+                *state.server.lock().unwrap() = Err(e);
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
         }
     };
+    // the port is kept: the paired phones and the QR use it, and next time it is tried first
+    if state.config.lock().unwrap().port != port {
+        state.config.lock().unwrap().port = port;
+        state.save();
+    }
     // pointer moves are tiny and frequent: no waiting to pack them together
     let listener = listener.tap_io(|tcp| { let _ = tcp.set_nodelay(true); });
     *state.server.lock().unwrap() = Ok(port);
@@ -253,5 +284,17 @@ impl Control {
         let mut sink = sink();
         for b in self.buttons.drain(..) { self.injector.button(&mut sink, b, Press::Up); }
         for k in std::mem::take(&mut self.keys) { let _ = self.injector.key(&mut sink, &k, &[], Press::Up); }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tries_the_saved_port_then_the_usual_ones_then_any() {
+        assert_eq!(candidate_ports(47810), vec![47810, 27810, 37810, 0]);
+        assert_eq!(candidate_ports(37810), vec![37810, 47810, 27810, 0]);
+        assert_eq!(candidate_ports(50123), vec![50123, 47810, 27810, 37810, 0]);
     }
 }
