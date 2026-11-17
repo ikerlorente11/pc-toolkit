@@ -1,12 +1,12 @@
 /** The desktop's network for the viewer (its NetBackend): requests to any server (OPDS catalogs,
  * MangaDex, Internet Archive, Komga, Kavita, Calibre-Web…) made by Rust through tauri-plugin-http, so
  * the web view's CORS does not apply, and files downloaded by Rust (src-tauri/src/net.rs) into
- * Downloads\La Estantería (or saved there when the page makes them, `save`), answered as the path the
- * shelf's `addFiles` takes. */
+ * Downloads\La Estantería (or saved there when the page makes them, `save`, or a piece at a time as it
+ * gets them, `saveStream`), answered as the path the shelf's `addFiles` takes. */
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { fetch as rustFetch } from '@tauri-apps/plugin-http'
-import { t, type NetBackend } from 'estanteria-viewer'
+import { t, type FileSink, type NetBackend } from 'estanteria-viewer'
 
 let agent: Promise<string> | null = null
 /** `LaEstanteria/<version> (Windows)`, as Rust says it (one source for both kinds of request). */
@@ -24,6 +24,15 @@ function httpOnly(url: string) {
 }
 
 let downloads = 0
+
+/** A call to Rust whose failure comes as an Error (Rust answers a plain string). */
+async function call<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e))
+  }
+}
 
 export function desktopNet(): NetBackend {
   return {
@@ -72,6 +81,18 @@ export function desktopNet(): NetBackend {
       } catch (e) {
         throw e instanceof Error ? e : new Error(String(e))
       }
+    },
+
+    async saveStream(name, folder) {
+      // Rust writes it as «<name>.part» and gives it its name when whole (net_stream_* in src-tauri/src/net.rs)
+      const id = await call(() => invoke<number>('net_stream_open', { name, folder: folder || null }))
+      const sink: FileSink = {
+        // each piece as the raw body of its call, as `save`; which file, in a header
+        write: (piece) => call(() => invoke<void>('net_stream_write', piece, { headers: { 'x-id': String(id) } })),
+        close: () => call(() => invoke<string>('net_stream_close', { id })),
+        abort: () => call(() => invoke<void>('net_stream_abort', { id })),
+      }
+      return sink
     },
   }
 }

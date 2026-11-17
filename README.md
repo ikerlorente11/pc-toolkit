@@ -188,7 +188,21 @@ En su página de ajustes:
   `Cargo.lock`, mover el visor (`estanteria-viewer` en `package.json` y `pnpm-lock.yaml`) al commit del repo estanteria
   y añadir sus novedades a `viewer/src/lib/changelog.ts` (las enseña Ajustes → Acerca de), y etiquetar.
 - Desarrollo: `cd tools/estanteria/app && pnpm install && pnpm tauri dev` (hace falta Rust y las herramientas de
-  compilación de C++ de Visual Studio); solo la parte web, `pnpm dev` en el navegador.
+  compilación de C++ de Visual Studio); solo la parte web, `pnpm dev` en el navegador. Para probar un visor aún sin
+  publicar, `ESTANTERIA_VIEWER=<carpeta viewer/ del repo estanteria>` (ver `vite.config.ts`).
+- Biblioteca Telegram: necesita las credenciales de la app en la API de Telegram (un `api_id` y un `api_hash` de
+  [my.telegram.org](https://my.telegram.org), una pareja para la app, no por persona). **No van en el repo** (es
+  público): se meten al compilar como `VITE_TELEGRAM_API_ID` y `VITE_TELEGRAM_API_HASH`. En local, en
+  `tools/estanteria/app/.env.local` (ignorado por git):
+  ```
+  VITE_TELEGRAM_API_ID=<api_id>
+  VITE_TELEGRAM_API_HASH=<api_hash>
+  ```
+  En el CI, como secretos del repo `TELEGRAM_API_ID` y `TELEGRAM_API_HASH` (Settings → Secrets and variables →
+  Actions), que el paso del instalador pasa con esos nombres. Sin ellas la app compila igual, sin biblioteca Telegram.
+  Quedan dentro del instalador (como en cualquier cliente de Telegram): lo que no debe salir es la sesión de cada
+  persona, que se guarda en el almacén de credenciales de Windows (cuenta `viewer:<clave>` del servicio «La
+  Estantería»; un secreto cabe hasta 1280 caracteres UTF-16, 2560 bytes, y una sesión ronda 350-400).
 
 ### El Puntero
 

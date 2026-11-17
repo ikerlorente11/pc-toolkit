@@ -169,10 +169,15 @@ const shelf = new LocalShelf(desktopShelf(() => connection.url, () => Api.basic(
 
 // ---- the catalogs this app reads by itself, and its network (no CORS) ----
 const catalogs = new CatalogRegistry()
-/** the device's lock (Windows Hello), when it has one */
+/** the device's lock (Windows Hello), when it has one, and its secure store (a Telegram session) */
 const native = desktopNative()
 const lock = useAppLock(() => native)
 const net = desktopNet()
+/** the app's credentials in Telegram's API, put in when building (VITE_TELEGRAM_API_ID and VITE_TELEGRAM_API_HASH:
+ * see the README), never in this public code; without them there is no Telegram library */
+const telegramId = Number(import.meta.env.VITE_TELEGRAM_API_ID)
+const telegramHash = (import.meta.env.VITE_TELEGRAM_API_HASH || '').trim()
+const telegram = Number.isInteger(telegramId) && telegramId > 0 && telegramHash ? { apiId: telegramId, apiHash: telegramHash } : undefined
 
 /** The store with a server (its API, with the app token) or without (this PC's shelf answers). */
 function makeStore(server: boolean): Store {
@@ -188,7 +193,7 @@ function makeStore(server: boolean): Store {
   const s: Store = { api: current, covers, pages, readingRoot: 'Lectura', state, refresh, go: go as any, back, notify, read, offline: keeper, shelf,
     libraries: allLibraries, serverName: server ? serverName.value : undefined,
     appearance: { theme, setTheme }, version: version.value && version.value !== 'dev' ? version.value : undefined, catalogs, net, platform: 'desktop', native,
-    downloadsFolder: () => invoke<string>('net_downloads_dir'), setDownloadsFolder }
+    downloadsFolder: () => invoke<string>('net_downloads_dir'), setDownloadsFolder, telegram }
   return s
 }
 /** Another folder for the downloads (or back to the usual places): Rust moves the copies kept offline there. */

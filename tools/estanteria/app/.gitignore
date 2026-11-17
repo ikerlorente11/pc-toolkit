@@ -3,3 +3,6 @@ dist/
 src-tauri/target/
 src-tauri/gen/schemas/
 src-tauri/pdfium/pdfium.dll
+# the app's credentials in Telegram's API (VITE_TELEGRAM_API_ID/HASH, see the README): never in the repo
+.env.local
+.env.*.local

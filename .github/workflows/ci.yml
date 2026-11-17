@@ -63,9 +63,13 @@ jobs:
       - run: cargo test --lib
         working-directory: tools/estanteria/app/src-tauri
       # Sin etiqueta solo compila (comprueba que el instalador sale); con etiqueta estanteria-v* publica la release.
+      # Las credenciales de la app en la API de Telegram (secretos del repo TELEGRAM_API_ID y TELEGRAM_API_HASH) entran
+      # en el front al compilar; sin ellas (un fork, un PR de fuera) sale igual, sin biblioteca Telegram.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          VITE_TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         with:
           projectPath: tools/estanteria/app
           tagName: ${{ startsWith(github.ref, 'refs/tags/estanteria-v') && github.ref_name || '' }}

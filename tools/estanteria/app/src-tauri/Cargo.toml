@@ -48,6 +48,9 @@ tauri-plugin-single-instance = "2"
 # unsafe-headers lets the page set its own User-Agent and leave out the web view's Origin, gzip answers
 # come decompressed (net.rs, src/lib/net.ts)
 tauri-plugin-http = { version = "2.9", features = ["unsafe-headers", "gzip"] }
+# the runtime Tauri already runs on (the same version): a file written a piece at a time is written straight
+# from the call's body on its thread, which the runtime is told is busy (block_in_place, net.rs)
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 # the app's lock: Windows Hello (UserConsentVerifier) asked over the app's window (lock.rs); the same
 # version Tauri already builds with

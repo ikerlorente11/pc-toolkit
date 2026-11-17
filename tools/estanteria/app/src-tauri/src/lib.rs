@@ -12,6 +12,10 @@ mod place;
 
 use tauri::Emitter;
 
+/// The secrets' service in the credential store. Accounts: the server's user (its app token) and
+/// `viewer:<key>` for the viewer's own secrets (NativeFeatures.secrets: a Telegram session, see
+/// src/lib/native.ts). On Windows a secret holds at most 2560 bytes (CRED_MAX_CREDENTIAL_BLOB_SIZE) and
+/// keyring keeps the text as UTF-16, so 1280 UTF-16 units; a longer one fails with keyring's TooLong.
 const SERVICE: &str = "La Estantería";
 
 #[tauri::command]
@@ -68,8 +72,29 @@ pub fn run() {
             local::shelf_add_file, local::shelf_remove_file, local::shelf_scan, local::shelf_prepare, local::shelf_set_cache_limit,
             local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload, local::shelf_upload_cancel,
             net::net_user_agent, net::net_download, net::net_save, net::net_save_as, net::net_downloads_dir, net::net_cancel, place::downloads_set_dir,
+            net::net_stream_open, net::net_stream_write, net::net_stream_close, net::net_stream_abort,
             lock::lock_available, lock::lock_unlock
         ])
         .run(tauri::generate_context!())
         .expect("error while running La Estantería");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Writes in this user's real credential store, so only when asked: `cargo test --lib -- --ignored`.
+    /// A Telegram session (StringSession: about 350-400 characters) fits; past 1280 UTF-16 units, no.
+    #[test]
+    #[ignore]
+    fn secrets_of_the_viewer_fit() {
+        let account = format!("viewer:estanteria.test.{}", std::process::id());
+        let session = format!("1{}", "A".repeat(400));
+        secret_set(account.clone(), session.clone()).unwrap();
+        assert_eq!(secret_get(account.clone()).unwrap().as_deref(), Some(session.as_str()));
+        secret_set(account.clone(), "ñ".repeat(1280)).unwrap();
+        assert!(secret_set(account.clone(), "a".repeat(1281)).is_err());
+        secret_delete(account.clone()).unwrap();
+        assert_eq!(secret_get(account).unwrap(), None);
+    }
 }

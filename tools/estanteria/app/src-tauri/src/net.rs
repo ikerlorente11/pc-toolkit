@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -143,6 +145,116 @@ pub async fn net_save_as<R: Runtime>(app: AppHandle<R>, request: tauri::ipc::Req
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// A file the page writes a piece at a time as it gets it (a big file of Telegram, hundreds of MB that are
+/// never whole in its memory): `net_stream_open`, then `net_stream_write` with each piece, then
+/// `net_stream_close` (or `net_stream_abort`). It is written as `<name>.part` and only gets its own name
+/// when whole, so a file half written never looks like a comic (the shelf does not open `.part`).
+struct Stream {
+    dir: PathBuf,
+    /// the name it gets once whole (made valid, as a download's)
+    wanted: String,
+    part: PathBuf,
+    file: File,
+}
+
+/// The files being written, by the number `net_stream_open` gave; taken out of its slot (None) once it
+/// ends, so a write still going finishes before its end or its abort goes on.
+static STREAMS: Mutex<Option<HashMap<u64, Arc<Mutex<Option<Stream>>>>>> = Mutex::new(None);
+static NEXT_STREAM: AtomicU64 = AtomicU64::new(1);
+
+impl Stream {
+    fn open(dir: &Path, name: &str) -> Result<Stream, String> {
+        let wanted = file_name(name, None, None, None);
+        fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear la carpeta de descargas ({e})"))?;
+        let (part, file) = create_unique(dir, &format!("{wanted}.part")).map_err(|e| format!("No se pudo crear el archivo ({e})"))?;
+        Ok(Stream { dir: dir.to_path_buf(), wanted, part, file })
+    }
+
+    fn write(&mut self, piece: &[u8]) -> Result<(), String> {
+        self.file.write_all(piece).map_err(|e| format!("No se pudo guardar «{}» ({e})", self.wanted))
+    }
+
+    /// Whole: on disk, and under its own name (« (2)», « (3)»… if it is taken, never overwriting). The name
+    /// is taken first with create_unique (an empty file) and the part put in its place; whatever fails, the
+    /// part is deleted.
+    fn finish(self) -> Result<PathBuf, String> {
+        let Stream { dir, wanted, part, file } = self;
+        let synced = file.sync_all();
+        drop(file);
+        let placed = synced.map_err(|e| e.to_string()).and_then(|_| {
+            let (path, taken) = create_unique(&dir, &wanted).map_err(|e| e.to_string())?;
+            drop(taken); // Windows does not replace a file that is open
+            fs::rename(&part, &path).map(|_| path.clone()).map_err(|e| {
+                let _ = fs::remove_file(&path);
+                e.to_string()
+            })
+        });
+        placed.map_err(|e| {
+            let _ = fs::remove_file(&part);
+            format!("No se pudo guardar «{wanted}» ({e})")
+        })
+    }
+
+    fn discard(self) {
+        drop(self.file);
+        let _ = fs::remove_file(&self.part);
+    }
+}
+
+/// The file of that number, out of the list (it ends): after the write of it going on, if one is.
+fn take_stream(id: u64) -> Option<Stream> {
+    let slot = STREAMS.lock().unwrap().as_mut()?.remove(&id)?;
+    let stream = slot.lock().unwrap_or_else(|e| e.into_inner()).take();
+    stream
+}
+
+/// Starts a file written a piece at a time into the catalog folder (in `folder`, a series' one, as
+/// `net_save`); answers the number its pieces, its end or its abort are asked with.
+#[tauri::command]
+pub async fn net_stream_open<R: Runtime>(app: AppHandle<R>, name: String, folder: Option<String>) -> Result<u64, String> {
+    let dir = series_dir(downloads_dir(&app)?, folder.as_deref());
+    let stream = tauri::async_runtime::spawn_blocking(move || Stream::open(&dir, &name)).await.map_err(|e| e.to_string())??;
+    let id = NEXT_STREAM.fetch_add(1, Ordering::Relaxed);
+    STREAMS.lock().unwrap().get_or_insert_with(Default::default).insert(id, Arc::new(Mutex::new(Some(stream))));
+    Ok(id)
+}
+
+/// The next piece of a file of `net_stream_open`, after the others: the raw body of the call (as
+/// `net_save`), its number in the header `x-id`. Written straight from the body the call brought (no copy
+/// of it), on this thread, which the runtime is told is busy (block_in_place) so other calls go on.
+#[tauri::command]
+pub async fn net_stream_write(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(piece) = request.body() else {
+        return Err("No llegó el trozo que guardar".into());
+    };
+    let id = request.headers().get("x-id").and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+    let gone = || String::from("Ese archivo ya no se está guardando");
+    let slot = STREAMS.lock().unwrap().as_ref().and_then(|all| all.get(&id).cloned()).ok_or_else(gone)?;
+    tokio::task::block_in_place(|| match slot.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        Some(stream) => stream.write(piece),
+        None => Err(gone()),
+    })
+}
+
+/// The file of `net_stream_open` is whole: answers its absolute path, which the shelf's `shelf_add_file`
+/// takes. If it cannot be put in place, nothing is left of it.
+#[tauri::command]
+pub async fn net_stream_close(id: u64) -> Result<String, String> {
+    let stream = take_stream(id).ok_or("Ese archivo ya no se está guardando")?;
+    tauri::async_runtime::spawn_blocking(move || stream.finish().map(|p| p.to_string_lossy().into_owned()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// The file of `net_stream_open` is not wanted: what was written of it is deleted (nothing when it is gone).
+#[tauri::command]
+pub async fn net_stream_abort(id: u64) -> Result<(), String> {
+    if let Some(stream) = take_stream(id) {
+        tauri::async_runtime::spawn_blocking(move || stream.discard()).await.map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 fn save(dir: &Path, name: &str, mime: &str, data: &[u8]) -> Result<PathBuf, String> {
@@ -464,6 +576,50 @@ mod tests {
         assert_eq!(fs::read(&first).unwrap(), b"PK");
         let second = save(&dir, "Capítulo 1: El inicio.cbz", "", b"PK").unwrap();
         assert!(second.ends_with("Capítulo 1 - El inicio (2).cbz"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn streams_get_their_name_only_when_whole() {
+        let dir = std::env::temp_dir().join(format!("estanteria-net-stream-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let listed = || {
+            let mut names: Vec<String> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            names.sort();
+            names
+        };
+        let mut first = Stream::open(&dir, "Tomo 1: Inicio.cbz").unwrap();
+        let mut second = Stream::open(&dir, "Tomo 1: Inicio.cbz").unwrap();
+        first.write(b"PK").unwrap();
+        first.write(b"\x03\x04").unwrap();
+        second.write(b"otro").unwrap();
+        // half written, nothing looks like a comic
+        assert_eq!(listed(), ["Tomo 1 - Inicio.cbz (2).part", "Tomo 1 - Inicio.cbz.part"]);
+        let path = first.finish().unwrap();
+        assert!(path.ends_with("Tomo 1 - Inicio.cbz"));
+        assert_eq!(fs::read(&path).unwrap(), b"PK\x03\x04");
+        let other = second.finish().unwrap();
+        assert!(other.ends_with("Tomo 1 - Inicio (2).cbz"));
+        assert_eq!(fs::read(&other).unwrap(), b"otro");
+        assert_eq!(listed(), ["Tomo 1 - Inicio (2).cbz", "Tomo 1 - Inicio.cbz"]);
+        // given up: nothing left of it
+        let mut dropped = Stream::open(&dir, "Tomo 2.cbz").unwrap();
+        dropped.write(b"PK").unwrap();
+        dropped.discard();
+        assert_eq!(listed(), ["Tomo 1 - Inicio (2).cbz", "Tomo 1 - Inicio.cbz"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn streams_end_once() {
+        let dir = std::env::temp_dir().join(format!("estanteria-net-streams-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let stream = Stream::open(&dir, "Libro.epub").unwrap();
+        let part = stream.part.clone();
+        STREAMS.lock().unwrap().get_or_insert_with(Default::default).insert(u64::MAX, Arc::new(Mutex::new(Some(stream))));
+        take_stream(u64::MAX).unwrap().discard();
+        assert!(!part.exists());
+        assert!(take_stream(u64::MAX).is_none());
         fs::remove_dir_all(&dir).unwrap();
     }
 

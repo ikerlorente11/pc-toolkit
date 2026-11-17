@@ -34,10 +34,11 @@ export function desktopShelf(service: () => string, authorization: () => string)
     setCacheLimit: (bytes) => invoke('shelf_set_cache_limit', { bytes }),
     clearCache: () => invoke('shelf_clear_cache'),
     reveal: (id) => invoke('shelf_reveal', { id }),
-    upload: async (id, dest, progress) => {
+    // `key`: the catalog entry it came from, sent along to the service (POST /api/uploads)
+    upload: async (id, dest, progress, key) => {
       const stop = await listen<{ id: number; sent: number; total: number }>('shelf-upload', (e) => { if (e.payload.id === id) progress(e.payload.sent, e.payload.total) })
       try {
-        return await invoke<UploadDone>('shelf_upload', { id, base: service(), authorization: authorization(), dest })
+        return await invoke<UploadDone>('shelf_upload', { id, base: service(), authorization: authorization(), dest, key: key || null })
       } finally { stop() }
     },
     cancelUpload: (id) => invoke('shelf_upload_cancel', { id }),

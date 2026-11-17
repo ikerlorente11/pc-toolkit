@@ -1408,14 +1408,16 @@ struct UploadProgress {
 }
 
 /// Puts a file of the shelf in the reading folder of the user's Archivador (through La Estantería's
-/// service, a piece at a time: requests through Cloudflare carry at most 100 MB); the new item.
+/// service, a piece at a time: requests through Cloudflare carry at most 100 MB); the new item. `key`: the
+/// entry of a catalog it came from, sent along so that every device knows it is kept there (and a different
+/// file with that name does not stop it).
 #[tauri::command]
-pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, authorization: String, dest: String) -> Result<Value, String> {
+pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, authorization: String, dest: String, key: Option<String>) -> Result<Value, String> {
     if let Some(set) = UPLOAD_STOP.lock().unwrap().as_mut() {
         set.remove(&id);            // a stop asked of an earlier upload of it is not this one's
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let outcome = upload_file(&app, id, &base, &authorization, &dest);
+        let outcome = upload_file(&app, id, &base, &authorization, &dest, key.as_deref().filter(|k| !k.is_empty()));
         if let Some(set) = UPLOAD_STOP.lock().unwrap().as_mut() {
             set.remove(&id);
         }
@@ -1423,7 +1425,7 @@ pub async fn shelf_upload<R: Runtime>(app: AppHandle<R>, id: u64, base: String, 
     }).await.map_err(|e| e.to_string())?
 }
 
-fn upload_file<R: Runtime>(app: &AppHandle<R>, id: u64, base: &str, authorization: &str, dest: &str) -> Result<Value, String> {
+fn upload_file<R: Runtime>(app: &AppHandle<R>, id: u64, base: &str, authorization: &str, dest: &str, key: Option<&str>) -> Result<Value, String> {
     {
         let (path, _) = known(app, id)?;
         let total = fs::metadata(&path).map_err(|e| e.to_string())?.len();
@@ -1436,7 +1438,11 @@ fn upload_file<R: Runtime>(app: &AppHandle<R>, id: u64, base: &str, authorizatio
                 .unwrap_or_else(|| format!("HTTP {code}")),
             other => format!("sin conexión ({other})"),
         };
-        let body = json!({ "path": dest, "size": total }).to_string();
+        let mut body = json!({ "path": dest, "size": total });
+        if let Some(key) = key {
+            body["key"] = json!(key);
+        }
+        let body = body.to_string();
         let started: Value = agent.post(&format!("{base}/api/uploads")).set("Authorization", &authorization)
             .set("Content-Type", "application/json").send_string(&body).map_err(fail)?
             .into_string().ok().and_then(|t| serde_json::from_str(&t).ok()).ok_or("el servicio no empezó la subida")?;
