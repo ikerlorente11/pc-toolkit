@@ -76,7 +76,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Api, CatalogRegistry, ExtensionsView, withDeviceLibraries, LockScreen, appSettings, useAppLock, CatalogView, CatalogsView, ChapterReader, CollectionsView, CollectionView, FavoritesView, Cover, DownloadsView, HomeView, LocalShelf, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SettingsView, SourcesView, STORE,
-         createState, nameFromUrl, plural, queryFromView, t, useScrollMemory, viewFromQuery, type Item, type Theme, type Library, type LibrariesBackend, type Store, type View } from 'estanteria-viewer'
+         createState, nameFromUrl, plural, queryFromView, resumeUploads, t, useScrollMemory, viewFromQuery, type Item, type Theme, type Library, type LibrariesBackend, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
 import { accountKey, desktopBackend } from './lib/offline'
 import { desktopShelf } from './lib/shelf'
@@ -233,6 +233,8 @@ async function refresh() {
     state.series = series
     state.loaded = true
     state.error = ''
+    // with the server answering, what was kept here and did not get there goes up (quietly)
+    if (state.server && store.value) resumeUploads(store.value)
   } catch (err: any) {
     // only a server can fail to answer: this device's own shelf has nothing to go wrong with
     if (state.server) state.error = t('No se pudo cargar tu estantería: {error}', { error: err?.message || String(err) })
