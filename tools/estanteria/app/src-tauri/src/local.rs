@@ -3,7 +3,8 @@
 //! they are listed; the viewer reads them through the `shelf` protocol:
 //!
 //! - `/c/<id>`: a small cover (the first page, or the picture a book names, made 400 px wide, kept
-//!   in `local-cache/covers/`; a TXT has none);
+//!   in `local-cache/covers/`; a TXT has none). One the app gave it (`shelf_set_cover`: a video's
+//!   thumbnail from Telegram) is kept apart, in `local-covers/`, and comes first; a video has no other;
 //! - `/p/<id>/<n>?w=`: a page. A cbz and a cbt are read straight from the archive (a tar is indexed
 //!   once and read by offset); a cbr or cb7 is unpacked once into `local-cache/<id>/` (reading one
 //!   page of a rar or a 7z means reading all before it), and a PDF page is rendered by PDFium at
@@ -11,8 +12,10 @@
 //!   JPEG XL one, which WebView2 cannot show, is made JPEG once and kept there. That cache has a
 //!   size limit: what was opened longest ago goes first;
 //! - `/f/<id>`: the file itself (a book, EPUB, MOBI/AZW3, FB2, FBZ or TXT, that the viewer lays out
-//!   itself; a DjVu, that the viewer renders itself; or a PDF for the document reader). A DjVu's
-//!   pages never come from here: only its cover (page 1, rendered by djvu-rs).
+//!   itself; a DjVu, that the viewer renders itself; a PDF for the document reader; or a video, MP4,
+//!   WebM, MKV or MOV, for a `<video>`). It answers HTTP ranges (`Range: bytes=…`, 206), reading only
+//!   the piece asked from the disk (a video can be GBs: the `<video>` asks for it a piece at a time).
+//!   A DjVu's pages never come from here: only its cover (page 1, rendered by djvu-rs).
 //!
 //! An item's id is `LOCAL_BASE` + a hash of its path, so the same file is the same item (with its
 //! progress and notes) every time, and never meets an id of the service (those count from 1).
@@ -38,6 +41,12 @@ const IMAGES: [&str; 8] = ["jpg", "jpeg", "png", "webp", "gif", "avif", "bmp", "
 const COVER_WIDTH: u32 = 400;
 const DEFAULT_CACHE: u64 = 2 << 30;
 const UPLOAD_CHUNK: usize = 32 << 20;
+/// The most a range of `/f` carries: a longer one asked (`bytes=0-`) gets this much, and the `<video>`
+/// asks for the rest after it.
+const RANGE_PIECE: u64 = 4 << 20;
+/// The largest cover the app may give an item (`shelf_set_cover`).
+const COVER_MAX: usize = 4 << 20;
+const VIDEOS: [&str; 4] = ["mp4", "webm", "mkv", "mov"];
 
 // ---- what the user chose: folders and files, kept in local-library.json ----
 
@@ -209,8 +218,17 @@ pub(crate) fn format_of_name(name: &str) -> Option<&'static str> {
         "fb2" => Some("fb2"),
         "fbz" => Some("fbz"),
         "txt" => Some("txt"),
+        "mp4" | "m4v" => Some("mp4"),
+        "webm" => Some("webm"),
+        "mkv" => Some("mkv"),
+        "mov" => Some("mov"),
         _ => None,
     }
+}
+
+/// A video (it is played from the file: no pages, no cover of its own).
+fn is_video(format: &str) -> bool {
+    VIDEOS.contains(&format)
 }
 
 /// What a comic archive really is (cbz, cbr, cb7 or cbt), by its first bytes: many a .cbr is a zip
@@ -326,7 +344,7 @@ pub fn shelf_rename_root<R: Runtime>(app: AppHandle<R>, shelf: State<'_, Shelf>,
 #[tauri::command]
 pub fn shelf_add_file<R: Runtime>(app: AppHandle<R>, shelf: State<'_, Shelf>, path: String) -> Result<Listed, String> {
     let file = PathBuf::from(&path);
-    let format = format_of(&file).ok_or("La Estantería abre cbz, cbr, cb7, cbt, pdf, djvu, epub, mobi, azw3, fb2, fbz y txt")?;
+    let format = format_of(&file).ok_or("La Estantería abre cbz, cbr, cb7, cbt, pdf, djvu, epub, mobi, azw3, fb2, fbz, txt, mp4, webm, mkv y mov")?;
     let meta = fs::metadata(&file).map_err(|e| format!("no se encuentra el archivo ({e})"))?;
     let path = clean_path(&file);
     // inside a folder of the shelf: it is there already, with its folder
@@ -349,6 +367,7 @@ pub fn shelf_remove_file<R: Runtime>(app: AppHandle<R>, shelf: State<'_, Shelf>,
     let mut gone: Vec<String> = Vec::new();
     with_config(&app, &shelf, |c| c.files.retain(|f| if id_of(Path::new(f)) == id { gone.push(f.clone()); false } else { true }))?;
     let _ = fs::remove_dir_all(cache_dir(&app)?.join(id.to_string()));
+    remove_given_cover(&app, id);
     // one downloaded from a catalog (it lives in the app's downloads folder) is deleted too, and the folder of
     // its series with its last file; one opened from anywhere else stays where it is
     if let Ok(downloads) = crate::net::downloads_dir(&app).and_then(|d| d.canonicalize().map_err(|e| e.to_string())) {
@@ -481,6 +500,10 @@ fn mime_of(ext: &str) -> &'static str {
         "txt" => "text/plain",
         "pdf" => "application/pdf",
         "djvu" => "image/vnd.djvu",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "mkv" => "video/x-matroska",
+        "mov" => "video/quicktime",
         _ => "application/octet-stream",
     }
 }
@@ -1092,6 +1115,9 @@ fn prepare<R: Runtime>(app: &AppHandle<R>, id: u64) -> Result<Prepared, String> 
     if format == "djvu" {
         return Err("un DjVu lo pagina el visor con el archivo entero; aquí no se prepara".into());
     }
+    if is_video(&format) {
+        return Ok(Prepared { pages: 0, page_sizes: vec![] });      // played from the file: nothing to prepare
+    }
     let dir = item_cache(app, id, &path)?;
     touch(&dir);
     if let Ok(data) = fs::read(dir.join("prepared.json")) {
@@ -1184,9 +1210,70 @@ pub fn shelf_reveal<R: Runtime>(app: AppHandle<R>, id: u64) -> Result<(), String
 
 // ---- the protocol ----
 
+/// Where the covers the app gave are kept (`shelf_set_cover`): outside the cache, so emptying it
+/// does not lose them (they cannot be made again from the file).
+fn given_covers<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(data_dir(app)?.join("local-covers"))
+}
+
+/// The cover the app gave an item, if it did.
+fn given_cover<R: Runtime>(app: &AppHandle<R>, id: u64) -> Option<(Vec<u8>, &'static str)> {
+    let dir = given_covers(app).ok()?;
+    [("jpg", "image/jpeg"), ("avif", "image/avif")].into_iter()
+        .find_map(|(ext, mime)| fs::read(dir.join(format!("{id}.{ext}"))).ok().map(|data| (data, mime)))
+}
+
+fn remove_given_cover<R: Runtime>(app: &AppHandle<R>, id: u64) {
+    if let Ok(dir) = given_covers(app) {
+        for ext in ["jpg", "avif"] {
+            let _ = fs::remove_file(dir.join(format!("{id}.{ext}")));
+        }
+    }
+}
+
+/// Keeps `image` as the cover of item `id` (one the file has not, as a video: its thumbnail from
+/// Telegram), made 400 px wide like the others; it is the cover `/c/<id>` serves from now on. The image
+/// is the raw body of the call (at most 4 MB), the id in the header `x-id`.
+#[tauri::command]
+pub async fn shelf_set_cover<R: Runtime>(app: AppHandle<R>, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
+        return Err("No llegó la portada".into());
+    };
+    let id = request.headers().get("x-id").and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<u64>().ok())
+        .filter(|&id| id >= LOCAL_BASE)
+        .ok_or("esa portada no es de un archivo de la estantería")?;
+    if data.is_empty() {
+        return Err("la portada está vacía".into());
+    }
+    if data.len() > COVER_MAX {
+        return Err("la portada es demasiado grande (como mucho, 4 MB)".into());
+    }
+    let data = data.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (data, ext) = match small(&data) {
+            Ok(done) => (done, "jpg"),
+            // an AVIF cannot be made small here (see `decode`): it is kept as it is, and WebView2 shows it
+            Err(_) if is_avif(&data) => (data, "avif"),
+            Err(e) => return Err(format!("la portada no es una imagen ({e})")),
+        };
+        let dir = given_covers(&app)?;
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let tmp = dir.join(format!("{id}.{ext}.part"));
+        fs::write(&tmp, &data).map_err(|e| e.to_string())?;
+        remove_given_cover(&app, id);
+        fs::rename(&tmp, dir.join(format!("{id}.{ext}"))).map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())?
+}
+
 fn cover<R: Runtime>(app: &AppHandle<R>, id: u64) -> Result<(Vec<u8>, &'static str), String> {
+    if let Some(given) = given_cover(app, id) {
+        return Ok(given);
+    }
     let covers = cache_dir(app)?.join("covers");
     let (path, format) = known(app, id)?;
+    if is_video(&format) {
+        return Err("sin portada".into());          // never opened as a comic or a book
+    }
     let changed = fs::metadata(&path).and_then(|m| m.modified()).ok();
     for (ext, mime) in [("jpg", "image/jpeg"), ("avif", "image/avif")] {
         let file = covers.join(format!("{id}.{ext}"));
@@ -1308,6 +1395,7 @@ fn page<R: Runtime>(app: &AppHandle<R>, id: u64, n: usize, width: Option<u32>) -
             return Ok((data, "image/jpeg"));
         }
         "djvu" => return Err("las páginas de un DjVu las dibuja el visor con el archivo entero".into()),
+        f if is_video(f) => return Err("un vídeo no tiene páginas".into()),
         _ => return Err("un libro no se sirve por páginas".into()),
     };
     if ext != "jxl" {
@@ -1326,9 +1414,81 @@ fn page<R: Runtime>(app: &AppHandle<R>, id: u64, n: usize, width: Option<u32>) -
     Ok((done, "image/jpeg"))
 }
 
-fn whole<R: Runtime>(app: &AppHandle<R>, id: u64) -> Result<(Vec<u8>, &'static str), String> {
+/// What a `Range` header asks of a file of `size` bytes, as `start..=end`: the first range it names
+/// (a browser asks for one), cut to `RANGE_PIECE` bytes; `None` when it cannot be served (416: past the
+/// end, empty, an empty file, not `bytes`, badly written).
+fn served_range(header: &str, size: u64) -> Option<(u64, u64)> {
+    let (unit, ranges) = header.trim().split_once('=')?;
+    if !unit.trim().eq_ignore_ascii_case("bytes") || size == 0 {
+        return None;
+    }
+    let (from, to) = ranges.split(',').next()?.trim().split_once('-')?;
+    let (from, to) = (from.trim(), to.trim());
+    let (start, end) = if from.is_empty() {
+        // `-500`: the last 500 bytes (all of them, if the file is smaller)
+        let last: u64 = to.parse().ok().filter(|&n| n > 0)?;
+        (size.saturating_sub(last), size - 1)
+    } else {
+        let start: u64 = from.parse().ok()?;
+        let end = if to.is_empty() { size - 1 } else { to.parse::<u64>().ok()?.min(size - 1) };
+        (start, end)
+    };
+    if start >= size || end < start {
+        return None;
+    }
+    Some((start, end.min(start.saturating_add(RANGE_PIECE - 1))))
+}
+
+/// `/f/<id>`: the file, whole (200) or the piece a `Range` asks (206), read from the disk as asked; it
+/// says it takes ranges either way. A HEAD gets the headers only.
+fn whole<R: Runtime>(app: &AppHandle<R>, id: u64, request: &Request<Vec<u8>>) -> Result<Response<Cow<'static, [u8]>>, String> {
     let (path, format) = known(app, id)?;
-    Ok((fs::read(&path).map_err(|e| e.to_string())?, mime_of(&format)))
+    file_response(&path, mime_of(&format), request)
+}
+
+fn file_response(path: &Path, mime: &str, request: &Request<Vec<u8>>) -> Result<Response<Cow<'static, [u8]>>, String> {
+    let mut file = fs::File::open(path).map_err(|e| format!("el archivo ya no está ({e})"))?;
+    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    let builder = Response::builder()
+        .header("Content-Type", mime)
+        .header("Accept-Ranges", "bytes")
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Access-Control-Expose-Headers", "Content-Range")
+        .header("Cache-Control", "private, max-age=600");
+    let head = request.method() == tauri::http::Method::HEAD;
+    let range = request.headers().get("range").and_then(|v| v.to_str().ok());
+    let (builder, body) = match range {
+        Some(asked) => {
+            let Some((start, end)) = served_range(asked, size) else {
+                return Ok(Response::builder()
+                    .status(416)
+                    .header("Content-Range", format!("bytes */{size}"))
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Cache-Control", "no-store")
+                    .body(Cow::Owned(vec![]))
+                    .unwrap());
+            };
+            let mut body = vec![];
+            if !head {
+                file.seek(SeekFrom::Start(start)).map_err(|e| e.to_string())?;
+                body.reserve((end + 1 - start) as usize);
+                file.take(end + 1 - start).read_to_end(&mut body).map_err(|e| e.to_string())?;
+            }
+            let builder = builder.status(206)
+                .header("Content-Range", format!("bytes {start}-{end}/{size}"))
+                .header("Content-Length", end + 1 - start);
+            (builder, body)
+        }
+        None => {
+            let mut body = vec![];
+            if !head {
+                body.reserve(size as usize);
+                file.read_to_end(&mut body).map_err(|e| e.to_string())?;
+            }
+            (builder.status(200).header("Content-Length", size), body)
+        }
+    };
+    builder.body(Cow::Owned(body)).map_err(|e| e.to_string())
 }
 
 fn answer(request: &Request<Vec<u8>>, app: &AppHandle<impl Runtime>) -> Response<Cow<'static, [u8]>> {
@@ -1348,7 +1508,10 @@ fn answer(request: &Request<Vec<u8>>, app: &AppHandle<impl Runtime>) -> Response
     let found = match (parts.first().copied(), id, parts.get(2)) {
         (Some("c"), Some(id), None) => cover(app, id),
         (Some("p"), Some(id), Some(n)) => n.parse::<usize>().map_err(|e| e.to_string()).and_then(|n| page(app, id, n, width)),
-        (Some("f"), Some(id), None) => whole(app, id),
+        (Some("f"), Some(id), None) => match whole(app, id, request) {
+            Ok(response) => return response,
+            Err(e) => Err(e),
+        },
         _ => Err("no existe".into()),
     };
     match found {
@@ -1626,6 +1789,91 @@ mod tests {
         assert_eq!(format_of_name("x.cbz2"), None);
         assert_eq!(format_of_name("fb2"), None);
         assert_eq!(format_of(Path::new(r"C:\a.b\Libro.fb2.zip")), Some("fbz"));
+    }
+
+    #[test]
+    fn videos_by_name() {
+        assert_eq!(format_of_name("Vídeo de Telegram.MP4"), Some("mp4"));
+        assert_eq!(format_of_name("x.m4v"), Some("mp4"));
+        assert_eq!(format_of_name("x.webm"), Some("webm"));
+        assert_eq!(format_of_name("x.mkv"), Some("mkv"));
+        assert_eq!(format_of_name("x.MOV"), Some("mov"));
+        assert_eq!(format_of_name("x.avi"), None);
+        assert_eq!(format_of_name("mp4"), None);
+        for (format, mime) in [("mp4", "video/mp4"), ("webm", "video/webm"), ("mkv", "video/x-matroska"), ("mov", "video/quicktime")] {
+            assert!(is_video(format));
+            assert_eq!(mime_of(format), mime);
+            // what it really is stays as named (its first bytes are only looked at for comics)
+            assert_eq!(container_of(Path::new("no-existe.mp4"), format), format);
+        }
+        assert!(!is_video("cbz") && !is_video("pdf"));
+    }
+
+    #[test]
+    fn ranges_asked() {
+        let size = 1000;
+        assert_eq!(served_range("bytes=0-", size), Some((0, 999)));
+        assert_eq!(served_range("bytes=100-199", size), Some((100, 199)));
+        assert_eq!(served_range("bytes=-500", size), Some((500, 999)));
+        assert_eq!(served_range("bytes=-5000", size), Some((0, 999)));        // more than there is: all of it
+        assert_eq!(served_range("bytes=990-2000", size), Some((990, 999)));   // the end, cut to the file
+        assert_eq!(served_range("bytes=999-999", size), Some((999, 999)));
+        assert_eq!(served_range("Bytes = 10-19 , 50-60", size), Some((10, 19)));  // only the first
+        // what cannot be served: 416
+        assert_eq!(served_range("bytes=1000-", size), None);
+        assert_eq!(served_range("bytes=1500-1600", size), None);
+        assert_eq!(served_range("bytes=200-100", size), None);
+        assert_eq!(served_range("bytes=-0", size), None);
+        assert_eq!(served_range("bytes=0-", 0), None);
+        assert_eq!(served_range("items=0-10", size), None);
+        assert_eq!(served_range("bytes=a-b", size), None);
+        assert_eq!(served_range("bytes=5", size), None);
+        // a long one comes a piece at a time
+        let big: u64 = 3 << 30;
+        assert_eq!(served_range("bytes=0-", big), Some((0, RANGE_PIECE - 1)));
+        assert_eq!(served_range("bytes=100-", big), Some((100, 100 + RANGE_PIECE - 1)));
+        assert_eq!(served_range("bytes=-500", big), Some((big - 500, big - 1)));
+        assert_eq!(served_range(&format!("bytes={}-", big - 10), big), Some((big - 10, big - 1)));
+    }
+
+    #[test]
+    fn files_by_ranges() {
+        let tmp = std::env::temp_dir().join(format!("estanteria-range-{}.mp4", std::process::id()));
+        let data: Vec<u8> = (0..1000u32).map(|i| (i % 251) as u8).collect();
+        fs::write(&tmp, &data).unwrap();
+        let ask = |method: &str, range: Option<&str>| {
+            let mut request = Request::builder().method(method).uri("http://shelf.localhost/f/1");
+            if let Some(r) = range {
+                request = request.header("Range", r);
+            }
+            file_response(&tmp, "video/mp4", &request.body(vec![]).unwrap()).unwrap()
+        };
+        let header = |r: &Response<Cow<'static, [u8]>>, key: &str| r.headers().get(key).map(|v| v.to_str().unwrap().to_string());
+
+        let r = ask("GET", Some("bytes=100-199"));
+        assert_eq!(r.status(), 206);
+        assert_eq!(header(&r, "Content-Range").as_deref(), Some("bytes 100-199/1000"));
+        assert_eq!(header(&r, "Content-Length").as_deref(), Some("100"));
+        assert_eq!(header(&r, "Accept-Ranges").as_deref(), Some("bytes"));
+        assert_eq!(header(&r, "Content-Type").as_deref(), Some("video/mp4"));
+        assert_eq!(&r.body()[..], &data[100..200]);
+
+        let r = ask("GET", Some("bytes=-10"));
+        assert_eq!((r.status().as_u16(), header(&r, "Content-Range")), (206, Some("bytes 990-999/1000".into())));
+        assert_eq!(&r.body()[..], &data[990..]);
+
+        let r = ask("GET", None);
+        assert_eq!((r.status().as_u16(), header(&r, "Accept-Ranges")), (200, Some("bytes".into())));
+        assert_eq!(header(&r, "Content-Length").as_deref(), Some("1000"));
+        assert_eq!(&r.body()[..], &data[..]);
+
+        let r = ask("HEAD", None);
+        assert_eq!((r.status().as_u16(), header(&r, "Content-Length"), r.body().len()), (200, Some("1000".into()), 0));
+
+        let r = ask("GET", Some("bytes=1000-"));
+        assert_eq!((r.status().as_u16(), header(&r, "Content-Range")), (416, Some("bytes */1000".into())));
+        assert!(r.body().is_empty());
+        let _ = fs::remove_file(&tmp);
     }
 
     /// A tar with some pages, out of order, a long name and something that is not a page.

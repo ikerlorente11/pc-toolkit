@@ -69,7 +69,7 @@ pub fn run() {
             secret_get, secret_set, secret_delete,
             offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where,
             local::local_launch_path, local::shelf_config, local::shelf_add_root, local::shelf_remove_root, local::shelf_rename_root,
-            local::shelf_add_file, local::shelf_remove_file, local::shelf_scan, local::shelf_prepare, local::shelf_set_cache_limit,
+            local::shelf_add_file, local::shelf_remove_file, local::shelf_scan, local::shelf_prepare, local::shelf_set_cover, local::shelf_set_cache_limit,
             local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload, local::shelf_upload_cancel,
             net::net_user_agent, net::net_download, net::net_save, net::net_save_as, net::net_downloads_dir, net::net_cancel, place::downloads_set_dir,
             net::net_stream_open, net::net_stream_write, net::net_stream_close, net::net_stream_abort,

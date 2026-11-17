@@ -8,7 +8,8 @@ import { t, type LocalFile, type LocalRoot, type Prepared, type ShelfBackend, ty
 /** What the protocol is reached at from the web view (Windows: http://<scheme>.localhost). */
 const BASE = navigator.userAgent.includes('Windows') ? 'http://shelf.localhost' : 'shelf://localhost'
 /** what the file chooser offers (as local.rs's format_of; a .fb2.zip is among the zips) */
-const EXTENSIONS = ['cbz', 'cbr', 'cb7', 'cbt', 'zip', 'rar', '7z', 'tar', 'pdf', 'djvu', 'djv', 'epub', 'mobi', 'azw', 'azw3', 'prc', 'fb2', 'fbz', 'txt']
+const EXTENSIONS = ['cbz', 'cbr', 'cb7', 'cbt', 'zip', 'rar', '7z', 'tar', 'pdf', 'djvu', 'djv', 'epub', 'mobi', 'azw', 'azw3', 'prc', 'fb2', 'fbz', 'txt',
+  'mp4', 'm4v', 'webm', 'mkv', 'mov']
 
 function list(picked: string | string[] | null): string[] {
   return picked === null ? [] : Array.isArray(picked) ? picked : [picked]
@@ -42,5 +43,9 @@ export function desktopShelf(service: () => string, authorization: () => string)
       } finally { stop() }
     },
     cancelUpload: (id) => invoke('shelf_upload_cancel', { id }),
+    // the picture as the raw body of the call (as net_save), which file in a header; kept apart from the cache
+    setCover: async (id, image) => {
+      await invoke('shelf_set_cover', new Uint8Array(await image.arrayBuffer()), { headers: { 'x-id': String(id) } })
+    },
   }
 }

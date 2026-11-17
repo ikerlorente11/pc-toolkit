@@ -505,6 +505,10 @@ fn extension_of_mime(mime: &str) -> Option<&'static str> {
         "application/vnd.comicbook-rar" | "application/x-cbr" | "application/vnd.rar" | "application/x-rar-compressed" => "cbr",
         "application/x-cb7" | "application/x-7z-compressed" => "cb7",
         "application/x-cbt" | "application/x-tar" => "cbt",
+        "video/mp4" | "video/x-m4v" => "mp4",
+        "video/webm" => "webm",
+        "video/x-matroska" => "mkv",
+        "video/quicktime" => "mov",
         _ => return None,
     })
 }
