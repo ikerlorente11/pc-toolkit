@@ -16,6 +16,7 @@
           <a href="#" :class="{ on: view.v === 'home' }" @click.prevent="go({ v: 'home' })"><span class="es-ni"><i class="es-i es-i-home" aria-hidden="true"></i></span> {{ t('Inicio') }}</a>
           <a href="#" :class="{ on: view.v === 'library' }" @click.prevent="go({ v: 'library' })"><span class="es-ni"><i class="es-i es-i-grid" aria-hidden="true"></i></span> {{ t('Estantería') }}</a>
           <a href="#" :class="{ on: view.v === 'favorites' }" @click.prevent="go({ v: 'favorites' })"><span class="es-ni"><i class="es-i es-i-star" aria-hidden="true"></i></span> {{ t('Favoritos') }}</a>
+          <a href="#" :class="{ on: view.v === 'collections' || view.v === 'collection' }" @click.prevent="go({ v: 'collections' })"><span class="es-ni"><i class="es-i es-i-list" aria-hidden="true"></i></span> {{ t('Colecciones') }}</a>
           <a href="#" :class="{ on: view.v === 'catalogs' || view.v === 'catalog' }" @click.prevent="go({ v: 'catalogs' })"><span class="es-ni"><i class="es-i es-i-cloud" aria-hidden="true"></i></span> {{ t('Catálogos') }}</a>
           <a href="#" :class="{ on: view.v === 'sources' }" @click.prevent="go({ v: 'sources' })"><span class="es-ni"><i class="es-i es-i-server" aria-hidden="true"></i></span> {{ t('Bibliotecas') }}</a>
         </nav>
@@ -55,6 +56,8 @@
           <ExtensionsView v-else-if="view.v === 'extensions'" :key="`x${view.library}`" :library="view.library" />
           <CatalogsView v-else-if="view.v === 'catalogs'" />
           <FavoritesView v-else-if="view.v === 'favorites'" />
+          <CollectionsView v-else-if="view.v === 'collections'" />
+          <CollectionView v-else-if="view.v === 'collection'" :key="`col${view.id}`" :id="view.id" />
           <DownloadsView v-else-if="view.v === 'downloads'" />
           <CatalogView v-else-if="view.v === 'catalog'" :key="`c${view.kind}`" :kind="view.kind" :path="view.path" :q="view.q" />
         </template>
@@ -72,7 +75,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
-import { Api, CatalogRegistry, ExtensionsView, withDeviceLibraries, LockScreen, appSettings, useAppLock, CatalogView, CatalogsView, ChapterReader, FavoritesView, Cover, DownloadsView, HomeView, LocalShelf, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SettingsView, SourcesView, STORE,
+import { Api, CatalogRegistry, ExtensionsView, withDeviceLibraries, LockScreen, appSettings, useAppLock, CatalogView, CatalogsView, ChapterReader, CollectionsView, CollectionView, FavoritesView, Cover, DownloadsView, HomeView, LocalShelf, Offline, ImageCache, ItemView, LibraryView, ReaderView, SeriesView, SettingsView, SourcesView, STORE,
          createState, nameFromUrl, plural, queryFromView, t, useScrollMemory, viewFromQuery, type Item, type Theme, type Library, type LibrariesBackend, type Store, type View } from 'estanteria-viewer'
 import { forgetToken, loadConnection, loadToken, saveConnection, saveToken, type Connection } from './lib/settings'
 import { accountKey, desktopBackend } from './lib/offline'
@@ -133,7 +136,7 @@ function go(next: View | { v: 'setup' }, replace = false) {
 const isRoot = computed(() => {
   const v = view.value as any
   if (v.v === 'library') return !v.folder && !v.source && !v.q
-  return ['home', 'catalogs', 'sources', 'favorites'].includes(v.v)
+  return ['home', 'catalogs', 'sources', 'favorites', 'collections'].includes(v.v)
 })
 function back() {
   if (window.history.length > 1) window.history.back()
