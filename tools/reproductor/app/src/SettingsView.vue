@@ -27,6 +27,8 @@
       <p v-if="lib.error" class="rp-banner rp-banner-error">{{ lib.error }}</p>
     </section>
 
+    <section class="rd-box"><LibrariesSettings :libraries="libraries" /></section>
+
     <section class="rd-box">
       <h2>Descargas</h2>
       <p class="rp-muted rp-small">Sin servidor, El Reproductor busca y baja la música a este equipo con su propio motor de descargas: todo ocurre aquí.
@@ -75,6 +77,7 @@
       <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
       <h3 class="rd-news-h">Novedades de la 0.2.0</h3>
       <ul class="rd-news">
+        <li>Bibliotecas: añade tu Navidrome (o cualquier servidor Subsonic) o tu Jellyfin y sus canciones se juntan con las de este equipo.</li>
         <li>Conecta tu servidor de El Reproductor (Ajustes › Servidor) y verás toda la música de tu nube, que suena al momento sin bajarla entera. Lo que bajas va a tu nube.</li>
         <li>Este equipo es uno más de tus dispositivos: pásale lo que suena en el móvil o en la web, o llévatelo de aquí.</li>
         <li>Guarda discos y listas de tu nube en este equipo para escucharlos sin conexión; una lista «mantenida» guarda sola lo que le añadas.</li>
@@ -91,12 +94,13 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import type { DeviceLibrary, LocalEngine } from 'reproductor-player'
+import { LibrariesSettings, type DeviceLibrary, type LocalEngine, type RemoteLibraries } from 'reproductor-player'
 import type { Connection } from './lib/server'
 
 const props = defineProps<{
   device: DeviceLibrary
   engine: LocalEngine
+  libraries: RemoteLibraries
   version: string
   /** the server connected, if any */
   server: Connection | null

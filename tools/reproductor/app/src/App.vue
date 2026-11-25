@@ -4,7 +4,7 @@
                     :cloud-name="server ? server.connection.name || 'tu nube' : 'Windows'" :me="server ? me : undefined"
                     :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="server || local ? engine.state.status?.music_dir : undefined">
     <template #settings>
-      <SettingsView :device="device" :engine="engine" :version="version" :server="server?.connection || null" :server-error="serverError" :saved="savedServer"
+      <SettingsView :device="device" :engine="engine" :libraries="remotes" :version="version" :server="server?.connection || null" :server-error="serverError" :saved="savedServer"
                     :connect="connectServer" :disconnect="disconnectServer" />
     </template>
   </ReproductorShell>
@@ -18,10 +18,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
-  Api, DeviceLibrary, LocalEngine, Offline, ReproductorShell, Soundlift, deviceId, isAudioName, play, queryFromView, viewFromQuery, type Files, type Me, type View
+  Api, DeviceLibrary, LocalEngine, Offline, RemoteLibraries, ReproductorShell, withRemotes, Soundlift, deviceId, isAudioName, play, queryFromView, viewFromQuery, type Files, type Me, type View
 } from 'reproductor-player'
 import 'reproductor-player/ui.css'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { addRoot, desktopDevice, mediaUrl, openFile } from './lib/device'
 import { desktopEngine } from './lib/engine'
 import { desktopOffline } from './lib/offline'
@@ -37,7 +38,14 @@ import SettingsView from './SettingsView.vue'
  * the cloud's music (played from its WebDAV through Rust), its downloads, its playlists, and this PC is one of the
  * user's devices. Where the app is lives in the window's hash (#v=album&…), so the mouse's back and forward buttons work.
  */
-const device = new DeviceLibrary(desktopDevice())
+/** the user's music servers (Subsonic, Jellyfin; Ajustes › Bibliotecas), their passwords in the credential store */
+const remotes = new RemoteLibraries({
+  get: (key) => invoke<string | null>('secret_get', { account: `player:${key}` }),
+  set: (key, value) => invoke('secret_set', { account: `player:${key}`, secret: value }),
+  delete: (key) => invoke('secret_delete', { account: `player:${key}` })
+}, (input, init) => tauriFetch(input, init), 'El Reproductor (escritorio)')
+/** this PC's music, and the libraries' joined to it (each one more folder) */
+const device = new DeviceLibrary(withRemotes(desktopDevice(), remotes))
 /** soundlift and the El Reproductor service on this PC: the app downloads music by itself (no server does the work) */
 const engine = new LocalEngine(desktopEngine())
 /** El Reproductor's service and soundlift of the engine, once it runs (then the app shows El Reproductor's pages) */
@@ -140,6 +148,7 @@ onMounted(async () => {
   document.addEventListener('click', onLink, true)
   version.value = await getVersion().catch(() => '')
   await device.start().catch((err) => { device.state.error = String(err) })
+  remotes.start()
   // the server saved, if any (else the engine of this PC, if installed)
   const saved = await savedConnection().catch(() => null)
   if (saved) {
