@@ -57,6 +57,12 @@ fn focus<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+/// This computer's name (what the other devices of the user see it as).
+#[tauri::command]
+fn device_name() -> String {
+    std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -74,7 +80,7 @@ pub fn run() {
         .manage(Launch(std::sync::Mutex::new(file_argument(std::env::args()))))
         .register_asynchronous_uri_scheme_protocol("media", library::serve)
         .invoke_handler(tauri::generate_handler![
-            secret_get, secret_set, secret_delete, launch_path,
+            secret_get, secret_set, secret_delete, launch_path, device_name,
             library::library_get, library::library_scan, library::library_add_root, library::library_remove_root,
             library::library_open_file, library::library_reveal
         ])

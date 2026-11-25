@@ -1,18 +1,18 @@
 <template>
-  <ReproductorShell :files="files" :device="device" :view="view" :navigate="navigate" cloud-name="tu nube">
+  <ReproductorShell :files="files" :device="device" :view="view" :navigate="navigate" cloud-name="tu nube" :me="me">
     <template #settings><SettingsView :device="device" :version="version" /></template>
   </ReproductorShell>
   <div v-if="dropping" class="rd-drop">Suelta canciones para escucharlas, o carpetas para añadirlas a tu música</div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
-  DeviceLibrary, ReproductorShell, isAudioName, play, queryFromView, viewFromQuery, type Files, type View
+  DeviceLibrary, ReproductorShell, deviceId, isAudioName, play, queryFromView, viewFromQuery, type Files, type Me, type View
 } from 'reproductor-player'
 import 'reproductor-player/ui.css'
 import { addRoot, desktopDevice, openFile } from './lib/device'
@@ -25,6 +25,9 @@ import SettingsView from './SettingsView.vue'
  */
 const device = new DeviceLibrary(desktopDevice())
 const version = ref('')
+/** This PC among the user's devices (once connected to a server): «Escritorio · NOMBRE-DEL-PC». */
+const me = reactive<Me>({ id: deviceId(), name: 'Escritorio', kind: 'desktop' })
+invoke<string>('device_name').then((n) => { if (n) me.name = `Escritorio · ${n}` }).catch(() => {})
 
 const files: Files = {
   async list() { throw Object.assign(new Error('Sin servidor conectado'), { status: 404 }) },
