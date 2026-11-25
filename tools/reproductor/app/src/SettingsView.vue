@@ -61,9 +61,10 @@
           seguir escuchando en otros dispositivos.</p>
         <label>Dirección<input v-model.trim="form.url" class="rp-input" placeholder="https://elreproductor.ejemplo.com" required /></label>
         <label>Usuario<input v-model.trim="form.username" class="rp-input" autocomplete="username" required /></label>
-        <label>Contraseña de aplicación<input v-model="form.password" class="rp-input" type="password" autocomplete="current-password" required /></label>
+        <label>Contraseña<input v-model="form.password" class="rp-input" type="password" autocomplete="current-password" required /></label>
         <label>Nombre <small class="rp-muted">(opcional)</small><input v-model.trim="form.name" class="rp-input" placeholder="El Archivador" /></label>
-        <p class="rp-muted rp-tiny">La contraseña de aplicación se crea en tu nube (Ajustes › Contraseñas de aplicación) y se guarda en el Administrador de credenciales de Windows.</p>
+        <p class="rp-muted rp-tiny">La de tu cuenta de la nube. La app la usa una sola vez para crearse su propia contraseña de aplicación, que es la
+          única que guarda (en el Administrador de credenciales de Windows). Puedes quitársela desde tu nube cuando quieras.</p>
         <div class="rd-actions"><button class="rp-btn rp-primary" :disabled="busy"><span v-if="busy" class="rp-spin"></span> Conectar</button></div>
       </form>
       <p v-if="error || serverError" class="rp-banner rp-banner-error">{{ error || serverError }}</p>
@@ -100,10 +101,12 @@ const props = defineProps<{
   /** the server connected, if any */
   server: Connection | null
   serverError: string
+  /** a saved server that could not be reached: its address and user, to write the password again */
+  saved?: Connection | null
   connect: (c: Connection, password: string) => Promise<void>
   disconnect: () => Promise<void>
 }>()
-const form = reactive({ url: '', username: '', password: '', name: '' })
+const form = reactive({ url: props.saved?.url || '', username: props.saved?.username || '', password: '', name: props.saved?.name || '' })
 const busy = ref(false)
 const error = ref('')
 async function join() {

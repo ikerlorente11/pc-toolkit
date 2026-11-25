@@ -4,7 +4,7 @@
                     :cloud-name="server ? server.connection.name || 'tu nube' : 'Windows'" :me="server ? me : undefined"
                     :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="server || local ? engine.state.status?.music_dir : undefined">
     <template #settings>
-      <SettingsView :device="device" :engine="engine" :version="version" :server="server?.connection || null" :server-error="serverError"
+      <SettingsView :device="device" :engine="engine" :version="version" :server="server?.connection || null" :server-error="serverError" :saved="savedServer"
                     :connect="connectServer" :disconnect="disconnectServer" />
     </template>
   </ReproductorShell>
@@ -66,12 +66,14 @@ const version = ref('')
 // ---- a server of its own (El Archivador's El Reproductor) ----
 const server = shallowRef<Server | null>(null)
 const serverError = ref('')
+/** the server saved, when connecting to it failed (Ajustes offers it again, with its address and user filled in) */
+const savedServer = ref<Connection | null>(null)
 /** songs of the server's cloud kept on this PC (copied into the engine's music folder, played from there) */
 const offline = new Offline(desktopOffline())
 /** which El Reproductor the pages show: the server's, the engine's of this PC, or none (only this PC's music) */
 const mode = computed(() => (server.value ? 'server' : local.value ? 'local' : 'device'))
 async function connectServer(c: Connection, password: string) {
-  server.value = await connect(c, password)
+  server.value = await connect(c, password, me.name)
   serverError.value = ''
 }
 async function disconnectServer() {
@@ -141,7 +143,10 @@ onMounted(async () => {
   // the server saved, if any (else the engine of this PC, if installed)
   const saved = await savedConnection().catch(() => null)
   if (saved) {
-    try { server.value = await connect(saved) } catch (err: any) { serverError.value = `No se pudo conectar con ${saved.url}: ${err?.message || err}` }
+    try { server.value = await connect(saved, undefined, me.name) } catch (err: any) {
+      serverError.value = `No se pudo conectar con ${saved.url}: ${err?.message || err}`
+      savedServer.value = saved
+    }
   }
   if ((await engine.refresh().catch(() => null))?.installed && !server.value) startLocal()
   const launched = await invoke<string | null>('launch_path')
