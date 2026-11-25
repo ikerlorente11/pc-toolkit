@@ -1,0 +1,28 @@
+/* The desktop shell: the player's styles plus a light/dark theme of its own (there is no OpenCloud theme here).
+   The theme follows the system. The icons come with the app (public/icons), not from OpenCloud. */
+:root {
+  --oc-role-surface: #ffffff; --oc-role-surface-container: #f2f2f5; --oc-role-surface-container-high: #e6e6ea;
+  --oc-role-outline-variant: #e0e0e6; --oc-role-on-surface-variant: #6f6f78; --oc-role-on-surface: #1b1b1f; --oc-role-background: #fafafc;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --oc-role-surface: #1c1c20; --oc-role-surface-container: #26262b; --oc-role-surface-container-high: #313137;
+    --oc-role-outline-variant: #3a3a41; --oc-role-on-surface-variant: #a3a3ad; --oc-role-on-surface: #ededf2; --oc-role-background: #141417;
+    color-scheme: dark;
+  }
+}
+html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--oc-role-background); color: var(--oc-role-on-surface); }
+#app { height: 100%; }
+
+/* Ajustes */
+.rd-settings { display: grid; gap: 22px; max-width: 760px; }
+.rd-box { display: grid; gap: 12px; padding: 18px; border-radius: 14px; background: var(--rp-surface-2); }
+.rd-box h2 { margin: 0; font-size: 16px; }
+.rd-box p { margin: 0; line-height: 1.5; }
+.rd-roots { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rd-roots li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--rp-surface); }
+.rd-roots li .rp-ellipsis { flex: 1; }
+.rd-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rd-drop { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  background: rgba(19, 160, 90, .18); border: 3px dashed var(--rp-accent, #1fb866); font-size: 20px; font-weight: 700; color: var(--rp-accent-2, #13a05a); }

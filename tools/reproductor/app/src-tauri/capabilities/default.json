@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the web view may do: the settings file, open links outside, pick folders, the window itself, and requests to any http or https server (any port) made by Rust",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "store:default",
+    "opener:default",
+    "dialog:allow-open",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "http://*:*" }, { "url": "https://*:*" }]
+    }
+  ]
+}

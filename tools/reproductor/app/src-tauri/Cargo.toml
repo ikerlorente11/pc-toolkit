@@ -1,0 +1,38 @@
+[package]
+name = "el-reproductor"
+version = "0.1.0"
+description = "El Reproductor: tu música, la de este equipo y la de tu nube"
+authors = ["Iker Lorente"]
+license = "PolyForm-Noncommercial-1.0.0"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "el_reproductor_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
+tauri-plugin-dialog = "2"
+# a second launch (a double click on a song with the app open) hands its file to the window already open
+tauri-plugin-single-instance = "2"
+# the server's and soundlift's API from Rust, so no CORS (src/lib/net.ts)
+tauri-plugin-http = { version = "2.9", features = ["unsafe-headers", "gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# the user's app password, in the operating system's credential store (Windows Credential Manager)
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
+# the songs' tags and covers (MP3, FLAC, Opus, Ogg, M4A, WAV…), pure Rust
+lofty = "0.22"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
