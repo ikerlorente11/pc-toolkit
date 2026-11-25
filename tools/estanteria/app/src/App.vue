@@ -250,7 +250,7 @@ async function connect(): Promise<boolean> {
     await new Api(connection.url, () => Api.basic(connection.username, token.value)).ensureConnected()
   } catch (err: any) {
     if (!err?.offline) {
-      serverError.value = err?.status === 401 ? t('No reconoce ese usuario o esa contraseña de aplicación.') : t('No se pudo conectar: {error}', { error: err?.message || String(err) })
+      serverError.value = err?.status === 401 ? t('El servidor ya no acepta la contraseña guardada: vuelve a conectarlo en Bibliotecas con tu contraseña.') : t('No se pudo conectar: {error}', { error: err?.message || String(err) })
       await use(false)
       listLibraries()
       return false
@@ -275,17 +275,20 @@ const libraries: LibrariesBackend = {
     if (input.type !== 'server') throw new Error(t('Este tipo de biblioteca aún no se puede conectar desde aquí.'))
     if (!input.id && libraryList.value.length) throw new Error(t('De momento solo se puede conectar un servidor propio: cambia el que hay o quítalo antes.'))
     const username = input.username.trim()
-    const secret = input.secret ? input.secret.trim()
+    let secret = input.secret ? input.secret.trim()
       : username !== connection.username || !token.value ? await loadToken(username) : token.value
-    if (!secret) throw new Error(t('Hace falta la contraseña de aplicación.'))
+    if (!secret) throw new Error(t('Hace falta tu contraseña.'))
     // a new or changed address (or credential) must answer before it is kept: else a typo in it would be taken
     // for being offline and the app would wait for a server that does not exist
     const url = input.url.trim().replace(/\/+$/, '')
     if (!input.id || url !== connection.url || username !== connection.username || input.secret) {
       try {
+        // the account's own password, typed once: the server has the cloud make this app an app password of its own,
+        // which is all it keeps (in the credential store)
+        if (input.secret) secret = await Api.appPassword((u, init) => fetch(u, init), url, username, secret, 'La Estantería · escritorio')
         await new Api(url, () => Api.basic(username, secret)).ensureConnected()
       } catch (err: any) {
-        throw new Error(err?.status === 401 ? t('No reconoce ese usuario o esa contraseña de aplicación.') : t('No se pudo conectar: {error}', { error: err?.message || String(err) }))
+        throw new Error(err?.status === 401 ? t('No reconoce ese usuario o esa contraseña.') : t('No se pudo conectar: {error}', { error: err?.message || String(err) }))
       }
     }
     token.value = secret
