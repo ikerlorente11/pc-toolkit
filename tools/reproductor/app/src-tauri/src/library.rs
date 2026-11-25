@@ -440,7 +440,7 @@ pub fn library_reveal(path: String) -> Result<(), String> {
 
 // ---- the media protocol ----
 
-fn mime_of(path: &Path) -> &'static str {
+pub fn mime_of(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {
         Some("mp3") => "audio/mpeg",
         Some("flac") => "audio/flac",
@@ -553,6 +553,10 @@ fn answer<R: Runtime>(request: &Request<Vec<u8>>, app: &AppHandle<R>) -> Respons
             .unwrap()
     };
     let path = request.uri().path().trim_matches('/').to_string();
+    // a song of the user's cloud (connected to a server): asked for to its WebDAV, by ranges
+    if let Some(("w", rest)) = path.split_once('/') {
+        return crate::cloud::answer(app, rest, request).unwrap_or_else(|| missing("sin servidor conectado".into()));
+    }
     let found = match path.split_once('/') {
         Some(("f", id)) => path_of(app, id),
         Some(("c", id)) => cover_file(app, id),

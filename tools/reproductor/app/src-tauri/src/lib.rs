@@ -3,6 +3,7 @@
 //! user's app password in the operating system's credential store, and runs the download engine (soundlift, see
 //! engine.rs); everything else happens in the web view.
 
+mod cloud;
 mod engine;
 mod library;
 
@@ -80,6 +81,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .manage(library::Library::default())
         .manage(engine::Engine::default())
+        .manage(cloud::Cloud::default())
         .manage(Launch(std::sync::Mutex::new(file_argument(std::env::args()))))
         .register_asynchronous_uri_scheme_protocol("media", library::serve)
         .invoke_handler(tauri::generate_handler![
@@ -87,7 +89,8 @@ pub fn run() {
             library::library_get, library::library_scan, library::library_add_root, library::library_remove_root,
             library::library_open_file, library::library_reveal,
             engine::motor_status, engine::motor_latest, engine::motor_install, engine::motor_update_ytdlp, engine::motor_set_music_dir,
-            engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove
+            engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove,
+            cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove
         ])
         .build(tauri::generate_context!())
         .expect("error while running El Reproductor")

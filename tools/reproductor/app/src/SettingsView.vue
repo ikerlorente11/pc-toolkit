@@ -29,7 +29,8 @@
 
     <section class="rd-box">
       <h2>Descargas</h2>
-      <p class="rp-muted rp-small">«Descargar música» baja canciones a este equipo con su propio motor (soundlift): todo ocurre aquí, sin servidor.</p>
+      <p class="rp-muted rp-small">Sin servidor, El Reproductor busca y baja la música a este equipo con su propio motor de descargas: todo ocurre aquí.
+        <template v-if="server">Ahora mismo, conectado a tu servidor, lo que bajas va a tu nube.</template></p>
       <template v-if="es.status?.installed">
         <p class="rp-small">
           Motor {{ es.status.installed.replace(/^motor-v/, '') }}
@@ -50,12 +51,32 @@
 
     <section class="rd-box">
       <h2>Servidor</h2>
-      <p class="rp-muted">Conectado a un servidor de El Reproductor verás toda la música de tu nube, podrás seguir artistas y bajar música. Llegará en la próxima versión.</p>
+      <template v-if="server">
+        <p>Conectado a <strong>{{ server.name || server.url }}</strong> como <strong>{{ server.username }}</strong>.</p>
+        <p class="rp-muted rp-small">Ves la música de tu nube, lo que bajas va a ella y este equipo es uno más de tus dispositivos.</p>
+        <div class="rd-actions"><button class="rp-btn" :disabled="busy" @click="leave">Desconectar</button></div>
+      </template>
+      <form v-else class="rd-form" @submit.prevent="join">
+        <p class="rp-muted rp-small">Conecta un servidor de El Reproductor (el de tu Archivador) para ver toda la música de tu nube, bajar a ella y
+          seguir escuchando en otros dispositivos.</p>
+        <label>Dirección<input v-model.trim="form.url" class="rp-input" placeholder="https://elreproductor.ejemplo.com" required /></label>
+        <label>Usuario<input v-model.trim="form.username" class="rp-input" autocomplete="username" required /></label>
+        <label>Contraseña de aplicación<input v-model="form.password" class="rp-input" type="password" autocomplete="current-password" required /></label>
+        <label>Nombre <small class="rp-muted">(opcional)</small><input v-model.trim="form.name" class="rp-input" placeholder="El Archivador" /></label>
+        <p class="rp-muted rp-tiny">La contraseña de aplicación se crea en tu nube (Ajustes › Contraseñas de aplicación) y se guarda en el Administrador de credenciales de Windows.</p>
+        <div class="rd-actions"><button class="rp-btn rp-primary" :disabled="busy"><span v-if="busy" class="rp-spin"></span> Conectar</button></div>
+      </form>
+      <p v-if="error || serverError" class="rp-banner rp-banner-error">{{ error || serverError }}</p>
     </section>
 
     <section class="rd-box">
       <h2>El Reproductor</h2>
       <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+      <h3 class="rd-news-h">Novedades de la 0.2.0</h3>
+      <ul class="rd-news">
+        <li>Conecta tu servidor de El Reproductor (Ajustes › Servidor) y verás toda la música de tu nube, que suena al momento sin bajarla entera. Lo que bajas va a tu nube.</li>
+        <li>Este equipo es uno más de tus dispositivos: pásale lo que suena en el móvil o en la web, o llévatelo de aquí.</li>
+      </ul>
       <h3 class="rd-news-h">Novedades de la 0.1.0</h3>
       <ul class="rd-news">
         <li>La música de tus carpetas, por artistas, discos y carpetas, con sus portadas y sus letras (de un .lrc o de LRCLIB).</li>
@@ -67,10 +88,36 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import type { DeviceLibrary, LocalEngine } from 'reproductor-player'
+import type { Connection } from './lib/server'
 
-const props = defineProps<{ device: DeviceLibrary; engine: LocalEngine; version: string }>()
+const props = defineProps<{
+  device: DeviceLibrary
+  engine: LocalEngine
+  version: string
+  /** the server connected, if any */
+  server: Connection | null
+  serverError: string
+  connect: (c: Connection, password: string) => Promise<void>
+  disconnect: () => Promise<void>
+}>()
+const form = reactive({ url: '', username: '', password: '', name: '' })
+const busy = ref(false)
+const error = ref('')
+async function join() {
+  busy.value = true
+  error.value = ''
+  try {
+    await props.connect({ url: form.url, username: form.username, name: form.name }, form.password)
+    form.password = ''
+  } catch (err: any) { error.value = `No se pudo conectar: ${err?.message || err}` } finally { busy.value = false }
+}
+async function leave() {
+  if (!window.confirm('¿Desconectar el servidor? La música de tu nube deja de verse aquí; no se borra nada.')) return
+  busy.value = true
+  try { await props.disconnect() } finally { busy.value = false }
+}
 const es = props.engine.state
 const checking = ref(false)
 async function chooseDir(reset: boolean) {

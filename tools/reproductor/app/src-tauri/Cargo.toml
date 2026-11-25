@@ -1,6 +1,6 @@
 [package]
 name = "el-reproductor"
-version = "0.1.0"
+version = "0.2.0"
 description = "El Reproductor: tu música, la de este equipo y la de tu nube"
 authors = ["Iker Lorente"]
 license = "PolyForm-Noncommercial-1.0.0"
@@ -34,6 +34,9 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 zip = { version = "2", default-features = false, features = ["deflate"] }
 # songs deleted from the music folder go to the recycle bin
 trash = "5"
+# the cloud's WebDAV (cloud.rs): its PROPFIND answers, and the app password as basic auth
+quick-xml = "0.37"
+base64 = "0.22"
 
 [profile.release]
 codegen-units = 1

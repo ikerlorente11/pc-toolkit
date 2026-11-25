@@ -1,14 +1,18 @@
 <template>
-  <ReproductorShell :key="local ? 'local' : 'device'" :api="local?.api" :sl="local?.sl" :files="files" :device="device" :engine="engine"
-                    :view="view" :navigate="navigate" music-root="Música" cloud-name="Windows" :me="local ? undefined : me"
-                    :where="local ? 'este equipo' : undefined" :device-also="local ? engine.state.status?.music_dir : undefined">
-    <template #settings><SettingsView :device="device" :engine="engine" :version="version" /></template>
+  <ReproductorShell :key="mode" :api="(server || local)?.api" :sl="(server || local)?.sl" :files="files" :device="device"
+                    :engine="server ? null : engine" :view="view" :navigate="navigate" music-root="Música"
+                    :cloud-name="server ? server.connection.name || 'tu nube' : 'Windows'" :me="server ? me : undefined"
+                    :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="local ? engine.state.status?.music_dir : undefined">
+    <template #settings>
+      <SettingsView :device="device" :engine="engine" :version="version" :server="server?.connection || null" :server-error="serverError"
+                    :connect="connectServer" :disconnect="disconnectServer" />
+    </template>
   </ReproductorShell>
   <div v-if="dropping" class="rd-drop">Suelta canciones para escucharlas, o carpetas para añadirlas a tu música</div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -20,6 +24,7 @@ import 'reproductor-player/ui.css'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { addRoot, desktopDevice, mediaUrl, openFile } from './lib/device'
 import { desktopEngine } from './lib/engine'
+import { connect, disconnect, savedConnection, type Connection, type Server } from './lib/server'
 import SettingsView from './SettingsView.vue'
 
 /**
@@ -27,7 +32,9 @@ import SettingsView from './SettingsView.vue'
  * indexes the chosen folders and serves the songs). With the download engine installed, it starts with the app and
  * the app is El Reproductor as on the server (its service runs in the engine, on this PC: search the catalogue,
  * follow artists, download albums and songs, playlists…), the engine's music folder standing for the cloud's
- * /Música. Where the app is lives in the window's hash (#v=album&…), so the mouse's back and forward buttons work.
+ * /Música. Connected to a server of El Reproductor (Ajustes › Servidor), it is that server's El Reproductor instead:
+ * the cloud's music (played from its WebDAV through Rust), its downloads, its playlists, and this PC is one of the
+ * user's devices. Where the app is lives in the window's hash (#v=album&…), so the mouse's back and forward buttons work.
  */
 const device = new DeviceLibrary(desktopDevice())
 /** soundlift and the El Reproductor service on this PC: the app downloads music by itself (no server does the work) */
@@ -35,7 +42,7 @@ const engine = new LocalEngine(desktopEngine())
 /** El Reproductor's service and soundlift of the engine, once it runs (then the app shows El Reproductor's pages) */
 const local = shallowRef<{ api: Api; sl: Soundlift } | null>(null)
 async function startLocal() {
-  if (local.value || engine.state.starting) return
+  if (local.value || engine.state.starting || server.value) return
   try {
     const r = await engine.start()
     const api = new Api(`http://127.0.0.1:${r.rp_port}`, Api.bearer(() => r.token))
@@ -54,23 +61,39 @@ watch(() => engine.state.status?.running?.rp_port, (port, before) => {
 // once the engine runs (the folder exists), it is added if it is outside the library's folders.
 watch(() => engine.state.status?.running && engine.state.status.music_dir, (dir) => { if (dir) addRoot(dir).catch(() => {}) })
 const version = ref('')
+
+// ---- a server of its own (El Archivador's El Reproductor) ----
+const server = shallowRef<Server | null>(null)
+const serverError = ref('')
+/** which El Reproductor the pages show: the server's, the engine's of this PC, or none (only this PC's music) */
+const mode = computed(() => (server.value ? 'server' : local.value ? 'local' : 'device'))
+async function connectServer(c: Connection, password: string) {
+  server.value = await connect(c, password)
+  serverError.value = ''
+}
+async function disconnectServer() {
+  if (server.value) await disconnect(server.value.connection)
+  server.value = null
+  if (engine.state.status?.installed) startLocal()
+}
 /** This PC among the user's devices (once connected to a server): «Escritorio · NOMBRE-DEL-PC». */
 const me = reactive<Me>({ id: deviceId(), name: 'Escritorio', kind: 'desktop' })
 invoke<string>('device_name').then((n) => { if (n) me.name = `Escritorio · ${n}` }).catch(() => {})
 
 /** The Rust side says "404" for what is not there: the pages expect `status: 404`. */
 const failed = (err: unknown) => Object.assign(new Error(String(err)), { status: String(err) === '404' ? 404 : undefined })
-/** The songs: this PC's by their id in the index; El Reproductor's by their path in the engine's music folder. */
+/** The songs: this PC's by their id in the index; El Reproductor's by their path, in the server's cloud (WebDAV,
+ *  through Rust) or in the engine's music folder. */
 const files: Files = {
   async list(dir) {
-    try { return await invoke('music_list', { dir }) } catch (err) { throw failed(err) }
+    try { return await invoke(server.value ? 'cloud_list' : 'music_list', { dir }) } catch (err) { throw failed(err) }
   },
   async remove(path) {
-    try { await invoke('music_remove', { path }) } catch (err) { throw failed(err) }
+    try { await invoke(server.value ? 'cloud_remove' : 'music_remove', { path }) } catch (err) { throw failed(err) }
   },
   async play(song) {
     if (song.device) return { url: device.backend.fileUrl(song.device) }
-    return { url: mediaUrl('m' + song.path.split('/').map(encodeURIComponent).join('/')) }
+    return { url: mediaUrl((server.value ? 'w' : 'm') + song.path.split('/').map(encodeURIComponent).join('/')) }
   }
 }
 
@@ -112,7 +135,12 @@ onMounted(async () => {
   document.addEventListener('click', onLink, true)
   version.value = await getVersion().catch(() => '')
   await device.start().catch((err) => { device.state.error = String(err) })
-  if ((await engine.refresh().catch(() => null))?.installed) startLocal()
+  // the server saved, if any (else the engine of this PC, if installed)
+  const saved = await savedConnection().catch(() => null)
+  if (saved) {
+    try { server.value = await connect(saved) } catch (err: any) { serverError.value = `No se pudo conectar con ${saved.url}: ${err?.message || err}` }
+  }
+  if ((await engine.refresh().catch(() => null))?.installed && !server.value) startLocal()
   const launched = await invoke<string | null>('launch_path')
   if (launched) playPath(launched)
   unlisten.push(await listen<string>('open-file', (e) => playPath(e.payload)))
