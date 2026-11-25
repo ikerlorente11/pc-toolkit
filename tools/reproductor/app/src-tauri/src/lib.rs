@@ -6,6 +6,7 @@
 mod cloud;
 mod engine;
 mod library;
+mod updater;
 
 use std::path::Path;
 
@@ -83,6 +84,7 @@ pub fn run() {
         .manage(engine::Engine::default())
         .manage(cloud::Cloud::default())
         .manage(cloud::Offline::default())
+        .manage(updater::Updater::default())
         .manage(Launch(std::sync::Mutex::new(file_argument(std::env::args()))))
         .register_asynchronous_uri_scheme_protocol("media", library::serve)
         .invoke_handler(tauri::generate_handler![
@@ -91,7 +93,8 @@ pub fn run() {
             library::library_open_file, library::library_reveal,
             engine::motor_status, engine::motor_latest, engine::motor_install, engine::motor_update_ytdlp, engine::motor_set_music_dir,
             engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove,
-            cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove, cloud::offline_have, cloud::offline_get, cloud::offline_remove
+            cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove, cloud::offline_have, cloud::offline_get, cloud::offline_remove,
+            updater::update_check, updater::update_install
         ])
         .build(tauri::generate_context!())
         .expect("error while running El Reproductor")
@@ -99,6 +102,8 @@ pub fn run() {
             // the download engine ends with the app (it would anyway: it watches the app's process)
             if let tauri::RunEvent::Exit = event {
                 engine::stop(&app.state::<engine::Engine>());
+                // a new version downloaded and not installed yet installs now
+                updater::on_exit(app);
             }
         });
 }

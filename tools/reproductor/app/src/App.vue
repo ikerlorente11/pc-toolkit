@@ -8,6 +8,7 @@
                     :connect="connectServer" :disconnect="disconnectServer" />
     </template>
   </ReproductorShell>
+  <UpdateBanner name="El Reproductor" />
   <div v-if="dropping" class="rd-drop">Suelta canciones para escucharlas, o carpetas para añadirlas a tu música</div>
 </template>
 
@@ -28,6 +29,7 @@ import { desktopEngine } from './lib/engine'
 import { desktopOffline } from './lib/offline'
 import { connect, disconnect, savedConnection, type Connection, type Server } from './lib/server'
 import SettingsView from './SettingsView.vue'
+import UpdateBanner from './UpdateBanner.vue'
 
 /**
  * El Reproductor for Windows: the shared app (reproductor-player) over the music of this PC (the Rust side
