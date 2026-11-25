@@ -75,6 +75,11 @@
     <section class="rd-box">
       <h2>El Reproductor</h2>
       <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+      <h3 class="rd-news-h">Novedades de la 0.2.1</h3>
+      <ul class="rd-news">
+        <li>Se actualiza sola si no la instalaste con PC Toolkit: baja la versión nueva y la instala al cerrar (o al pulsar «Reiniciar ahora»).</li>
+        <li>Servidor propio se conecta con tu contraseña de siempre: la app se crea una contraseña de aplicación para este equipo y no guarda la tuya.</li>
+      </ul>
       <h3 class="rd-news-h">Novedades de la 0.2.0</h3>
       <ul class="rd-news">
         <li>Bibliotecas: añade tu Navidrome (o cualquier servidor Subsonic) o tu Jellyfin y sus canciones se juntan con las de este equipo.</li>

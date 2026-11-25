@@ -1,6 +1,6 @@
 {
   "name": "reproductor-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "El Reproductor para Windows: tu música, la de este equipo y la de tu nube (app de escritorio de PC Toolkit, Tauri 2)",
   "license": "PolyForm-Noncommercial-1.0.0",
