@@ -76,6 +76,7 @@
       <ul class="rd-news">
         <li>Conecta tu servidor de El Reproductor (Ajustes › Servidor) y verás toda la música de tu nube, que suena al momento sin bajarla entera. Lo que bajas va a tu nube.</li>
         <li>Este equipo es uno más de tus dispositivos: pásale lo que suena en el móvil o en la web, o llévatelo de aquí.</li>
+        <li>Guarda discos y listas de tu nube en este equipo para escucharlos sin conexión; una lista «mantenida» guarda sola lo que le añadas.</li>
       </ul>
       <h3 class="rd-news-h">Novedades de la 0.1.0</h3>
       <ul class="rd-news">

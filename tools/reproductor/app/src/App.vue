@@ -1,8 +1,8 @@
 <template>
   <ReproductorShell :key="mode" :api="(server || local)?.api" :sl="(server || local)?.sl" :files="files" :device="device"
-                    :engine="server ? null : engine" :view="view" :navigate="navigate" music-root="Música"
+                    :engine="server ? null : engine" :offline="offline" :view="view" :navigate="navigate" music-root="Música"
                     :cloud-name="server ? server.connection.name || 'tu nube' : 'Windows'" :me="server ? me : undefined"
-                    :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="local ? engine.state.status?.music_dir : undefined">
+                    :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="server || local ? engine.state.status?.music_dir : undefined">
     <template #settings>
       <SettingsView :device="device" :engine="engine" :version="version" :server="server?.connection || null" :server-error="serverError"
                     :connect="connectServer" :disconnect="disconnectServer" />
@@ -18,12 +18,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
-  Api, DeviceLibrary, LocalEngine, ReproductorShell, Soundlift, deviceId, isAudioName, play, queryFromView, viewFromQuery, type Files, type Me, type View
+  Api, DeviceLibrary, LocalEngine, Offline, ReproductorShell, Soundlift, deviceId, isAudioName, play, queryFromView, viewFromQuery, type Files, type Me, type View
 } from 'reproductor-player'
 import 'reproductor-player/ui.css'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { addRoot, desktopDevice, mediaUrl, openFile } from './lib/device'
 import { desktopEngine } from './lib/engine'
+import { desktopOffline } from './lib/offline'
 import { connect, disconnect, savedConnection, type Connection, type Server } from './lib/server'
 import SettingsView from './SettingsView.vue'
 
@@ -65,6 +66,8 @@ const version = ref('')
 // ---- a server of its own (El Archivador's El Reproductor) ----
 const server = shallowRef<Server | null>(null)
 const serverError = ref('')
+/** songs of the server's cloud kept on this PC (copied into the engine's music folder, played from there) */
+const offline = new Offline(desktopOffline())
 /** which El Reproductor the pages show: the server's, the engine's of this PC, or none (only this PC's music) */
 const mode = computed(() => (server.value ? 'server' : local.value ? 'local' : 'device'))
 async function connectServer(c: Connection, password: string) {

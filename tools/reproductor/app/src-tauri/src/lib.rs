@@ -82,6 +82,7 @@ pub fn run() {
         .manage(library::Library::default())
         .manage(engine::Engine::default())
         .manage(cloud::Cloud::default())
+        .manage(cloud::Offline::default())
         .manage(Launch(std::sync::Mutex::new(file_argument(std::env::args()))))
         .register_asynchronous_uri_scheme_protocol("media", library::serve)
         .invoke_handler(tauri::generate_handler![
@@ -90,7 +91,7 @@ pub fn run() {
             library::library_open_file, library::library_reveal,
             engine::motor_status, engine::motor_latest, engine::motor_install, engine::motor_update_ytdlp, engine::motor_set_music_dir,
             engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove,
-            cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove
+            cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove, cloud::offline_have, cloud::offline_get, cloud::offline_remove
         ])
         .build(tauri::generate_context!())
         .expect("error while running El Reproductor")

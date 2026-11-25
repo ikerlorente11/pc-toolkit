@@ -2,15 +2,21 @@
 //! its songs play through the `media` protocol (`/w/<path in the personal space>`), asked for by Rust with the
 //! user's app password (an `<audio>` cannot send it) and by ranges, so a song starts at once and seeks anywhere
 //! without downloading it whole. The pages list its folders and delete songs (to the cloud's bin) as the web does.
+//!
+//! Without connection: songs of the cloud can be kept on this PC, copied into the engine's music folder with the
+//! cloud's own folders (`/Música/Artistas/…` → `Música\El Reproductor\Artistas\…`). A song with a copy plays from
+//! it (no network), and with no network at all the copies are this PC's music.
 
 use std::borrow::Cow;
+use std::collections::VecDeque;
+use std::fs;
 use std::io::Read;
 use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
 use tauri::http::{Request, Response};
-use tauri::{AppHandle, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 /// A ranged answer is at most this long (the audio element asks again for the rest)…
 const RANGE_PIECE: u64 = 4 << 20;
@@ -206,6 +212,10 @@ pub async fn cloud_remove<R: Runtime>(app: AppHandle<R>, path: String) -> Result
 
 /// `/w/<path>`: a song of the cloud, the piece the audio element asks for (at most RANGE_PIECE), from WebDAV.
 pub fn answer<R: Runtime>(app: &AppHandle<R>, path: &str, request: &Request<Vec<u8>>) -> Option<Response<Cow<'static, [u8]>>> {
+    // a copy kept on this PC plays from the disk
+    if let Some(copy) = crate::engine::music_path(app, &decode(path)).filter(|p| p.is_file()) {
+        return crate::library::file_response(&copy, request).ok();
+    }
     let (url, auth) = {
         let cloud = app.state::<Cloud>();
         let guard = cloud.0.lock().unwrap();
@@ -259,6 +269,131 @@ fn limit_range(asked: &str) -> String {
         }
         Err(_) => format!("bytes={first}"), // `-500`: the end, as it comes
     }
+}
+
+// ---- songs of the cloud kept on this PC ----
+
+/// The copies waiting to be made, and how far the queue is (`done` of `total` since it was last empty).
+#[derive(Default)]
+pub struct Offline {
+    queue: Mutex<(VecDeque<String>, usize, usize, bool)>,
+}
+
+#[derive(Serialize, Clone)]
+struct OfflineProgress {
+    done: usize,
+    total: usize,
+    path: Option<String>,
+    error: Option<String>,
+}
+
+/// Which of these cloud paths have a copy on this PC.
+#[tauri::command]
+pub fn offline_have<R: Runtime>(app: AppHandle<R>, paths: Vec<String>) -> Vec<String> {
+    paths.into_iter().filter(|p| crate::engine::music_path(&app, p).is_some_and(|f| f.is_file())).collect()
+}
+
+/// Puts songs in the queue of copies; one thread makes them one after another.
+#[tauri::command]
+pub fn offline_get<R: Runtime>(app: AppHandle<R>, offline: State<'_, Offline>, paths: Vec<String>) {
+    let start = {
+        let mut q = offline.queue.lock().unwrap();
+        for p in paths {
+            if !q.0.contains(&p) {
+                q.0.push_back(p);
+                q.2 += 1;
+            }
+        }
+        let start = !q.3;
+        q.3 = true;
+        start
+    };
+    if start {
+        let app = app.clone();
+        std::thread::spawn(move || copy_queue(app));
+    }
+}
+
+fn copy_queue<R: Runtime>(app: AppHandle<R>) {
+    loop {
+        let next = {
+            let offline = app.state::<Offline>();
+            let mut q = offline.queue.lock().unwrap();
+            match q.0.pop_front() {
+                Some(p) => Some(p),
+                None => {
+                    *q = (VecDeque::new(), 0, 0, false);
+                    None
+                }
+            }
+        };
+        let Some(path) = next else { return };
+        let error = copy_one(&app, &path).err();
+        let (done, total) = {
+            let offline = app.state::<Offline>();
+            let mut q = offline.queue.lock().unwrap();
+            q.1 += 1;
+            (q.1, q.2)
+        };
+        let ok = error.is_none();
+        let _ = app.emit("offline-progress", OfflineProgress {
+            done, total, path: ok.then(|| path.clone()),
+            error: error.map(|e| format!("No se pudo guardar «{}»: {e}", path.rsplit('/').next().unwrap_or(&path))),
+        });
+    }
+}
+
+/// One song from the cloud to its place in the music folder (through a `.part`, so a cut copy is never taken for one).
+fn copy_one<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<(), String> {
+    let target = crate::engine::music_path(app, path).ok_or("fuera de la música")?;
+    if target.is_file() {
+        return Ok(());
+    }
+    let (url, auth) = {
+        let cloud = app.state::<Cloud>();
+        let guard = cloud.0.lock().unwrap();
+        let conn = guard.as_ref().ok_or("sin servidor conectado")?;
+        (url_of(conn, path), conn.auth.clone())
+    };
+    let res = agent().get(&url).set("Authorization", &auth).timeout(Duration::from_secs(600)).call().map_err(|e| e.to_string())?;
+    if let Some(dir) = target.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let part = target.with_extension("part");
+    let mut out = fs::File::create(&part).map_err(|e| e.to_string())?;
+    let copied = std::io::copy(&mut res.into_reader(), &mut out);
+    drop(out);
+    if let Err(e) = copied {
+        let _ = fs::remove_file(&part);
+        return Err(e.to_string());
+    }
+    fs::rename(&part, &target).map_err(|e| e.to_string())
+}
+
+/// Removes the copies (the cloud keeps the songs) and the folders they leave empty (a cover at most).
+#[tauri::command]
+pub fn offline_remove<R: Runtime>(app: AppHandle<R>, paths: Vec<String>) -> Result<(), String> {
+    let root = crate::engine::music_path(&app, "/Música").ok_or("sin carpeta de música")?;
+    for p in &paths {
+        let Some(file) = crate::engine::music_path(&app, p) else { continue };
+        if file.is_file() {
+            fs::remove_file(&file).map_err(|e| e.to_string())?;
+        }
+        // up to the folders right inside the music folder (Artistas stays)
+        let mut dir = file.parent().map(|d| d.to_path_buf());
+        while let Some(d) = dir {
+            if d.parent() == Some(root.as_path()) || d == root {
+                break;
+            }
+            let Ok(entries) = fs::read_dir(&d) else { break };
+            let songs = entries.flatten().any(|e| e.path().is_dir() || crate::library::AUDIO.iter().any(|x| e.path().extension().is_some_and(|y| y.eq_ignore_ascii_case(x))));
+            if songs || fs::remove_dir_all(&d).is_err() {
+                break;
+            }
+            dir = d.parent().map(|x| x.to_path_buf());
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
