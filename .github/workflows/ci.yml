@@ -170,3 +170,12 @@ jobs:
           releaseBody: "Instalador de la app de escritorio El Reproductor. La herramienta de PC Toolkit lo instala sola; también se puede ejecutar a mano."
           releaseDraft: false
           prerelease: false
+      # La release de la app no puede quedarse como «Latest»: releases/latest/download/PCToolkit-Setup.exe
+      # (el enlace de descarga del gestor) apunta siempre a la última release de PC Toolkit (vX.Y.Z).
+      - if: startsWith(github.ref, 'refs/tags/reproductor-v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          v=$(gh release list -R ${{ github.repository }} -L 100 --json tagName,createdAt --jq '[.[] | select(.tagName | test("^v[0-9]"))] | sort_by(.createdAt) | last | .tagName')
+          gh release edit "$v" --latest -R ${{ github.repository }}

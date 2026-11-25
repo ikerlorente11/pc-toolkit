@@ -23,6 +23,7 @@ solo Everything pide permisos de administrador, una vez, para su servicio de ind
 | **Modo juegos** | Los emuladores (KytyPS5...) van mucho más lentos con el hipervisor de Windows (Hyper-V/VBS), que WSL2 y Docker necesitan. Crea una entrada de arranque sin hipervisor ni VBS: se cambia de modo desde su tarjeta o desde el aviso que sale al abrir un emulador (y al abrir Docker o WSL en modo juegos, ofrece volver). El modo se mantiene en cada reinicio hasta que lo cambies. Pide administrador una sola vez, al instalarla. |
 | **La Estantería** | Lector de cómics, manga y libros (cbz, cbr, cb7, pdf, djvu, epub, mobi, fb2…) de tus carpetas, de catálogos y de bibliotecas ([tu Archivador](https://github.com/ikerlorente11/estanteria), OPDS, Komga, Kavita, WebDAV, Suwayomi), con el progreso, notas y marcadores sincronizados con la web y el móvil. **Ctrl + Alt + L** la abre; los cómics y libros del Explorador se abren con ella. |
 | **El Puntero** | Usa el móvil como ratón y teclado del PC por la wifi, con la [app de Android](https://github.com/ikerlorente11/puntero): touchpad con gestos, botones de ratón, modo aire (mueves el puntero girando el móvil), teclado en directo con dictado, multimedia y volumen, presentaciones, ventanas y apps, webs y apagar o bloquear el PC. Se empareja con un QR y va cifrado. |
+| **El Reproductor** | Reproductor de música: la de tus carpetas, con letras sincronizadas, listas y las teclas multimedia. Con su motor de descargas (se instala desde la app) busca artistas, discos y canciones aunque no los tengas y los baja a tu PC; sigue a tus artistas y lo nuevo llega solo. Conectado a [tu Archivador](https://github.com/ikerlorente11/reproductor), toda la música de tu nube, sin conexión, historial y «seguir escuchando» entre dispositivos. También Navidrome/Subsonic y Jellyfin. **Ctrl + Alt + M** lo abre. |
 | **Keyboard Sound** | Reproduce un sonido al pulsar cada tecla. Varios sonidos, volumen propio (sin tocar el del sistema), campo de prueba y opción de iniciar con Windows. |
 | **LocalSend** | Pasa archivos entre el PC, el móvil y otros ordenadores de la red local, sin cuenta ni Internet, con [LocalSend](https://localsend.org). Lo deja en la bandeja para recibir y lo añade al menú **Enviar a** del Explorador. |
 | **Sonidos de dispositivos** | Cambia los sonidos de Windows al conectar y desconectar un dispositivo (USB...) por otros de una biblioteca: espada, Discord, Windows XP, globo, memes... Al desactivarla vuelven los de Windows. |
@@ -80,8 +81,8 @@ defecto, arranca con Windows.
 
 ### Actualizaciones
 
-PC Toolkit y los programas que instalan algunas herramientas (**La Estantería**, **El Puntero**, **LocalSend** y
-**Everything**) se actualizan cada uno por su lado, sin reinstalar nada:
+PC Toolkit y los programas que instalan algunas herramientas (**La Estantería**, **El Puntero**, **El Reproductor**,
+**LocalSend** y **Everything**) se actualizan cada uno por su lado, sin reinstalar nada:
 
 - El gestor busca versiones nuevas en segundo plano, sin congelar el panel: un minuto y medio después de
   arrancar y luego cada 6 horas. **Ajustes → Actualizaciones → Buscar actualizaciones** revisa en ese momento
@@ -232,6 +233,37 @@ En su página de ajustes:
 - Desarrollo: `cd tools/puntero/app && pnpm install && pnpm tauri dev`; tests `cargo test --lib` en `src-tauri`.
   Con un build de depuración, `PUNTERO_DEV_LINK=<archivo>` deja el emparejado abierto y escribe ahí el enlace del QR
   (y el código en `<archivo>.code`), para los tests de extremo a extremo del repo puntero.
+
+### El Reproductor
+
+- App de escritorio propia (`tools/reproductor/app`, Tauri 2) que reutiliza el paquete compartido `reproductor-player`
+  del repo [reproductor](https://github.com/ikerlorente11/reproductor) (el mismo que la web de El Archivador).
+- **Sin servidor:**
+  - Lee la música de las carpetas elegidas (por defecto Música). Rust lee las etiquetas con lofty y guarda un índice que
+    solo relee lo que cambia.
+  - Letras de un `.lrc` o de LRCLIB.
+  - Teclas multimedia, abrir canciones desde el Explorador y soltar canciones o carpetas en la ventana.
+- **Motor de descargas:** soundlift y el servicio de El Reproductor en modo local, congelados.
+  - Se descarga aparte de las releases `motor-v*` del repo reproductor y arranca con la app en 127.0.0.1, con una clave
+    que solo conoce la app.
+  - Con él la app es El Reproductor tal cual, sin cargar ningún servidor: buscar en el catálogo, seguir artistas,
+    bajar discos y canciones, listas.
+  - La música va a `Música\El Reproductor`. yt-dlp se actualiza solo.
+- **Servidor propio** (Ajustes › Servidor): se conecta con la contraseña de siempre, y la app se crea una contraseña
+  de aplicación y solo guarda esa.
+  - Toda la música de la nube por WebDAV, por rangos, a través de Rust.
+  - Guardar discos y listas en el equipo (sin conexión).
+  - Historial y «seguir escuchando» entre dispositivos.
+- **Bibliotecas** (Ajustes › Bibliotecas): Subsonic (Navidrome, Airsonic, Gonic, Ampache…) y Jellyfin. Sus canciones
+  se juntan con las del equipo.
+- **Actualizaciones:** se actualiza sola si no la gestiona PC Toolkit, es decir, si no existe la tarea
+  `PcToolkitReproductor`.
+- **Publicar una versión nueva:**
+  - El CI compila el instalador cuando cambia `tools/reproductor/app` y, con una etiqueta `reproductor-v<versión>`,
+    lo publica en Releases.
+  - Hay que subir `version` en `src-tauri/tauri.conf.json`, `package.json`, `Cargo.toml` y `Cargo.lock`, con sus
+    novedades en Ajustes.
+  - El paquete se fija a un commit del repo reproductor en `package.json` y `pnpm-lock.yaml`.
 
 ### Juegos
 
