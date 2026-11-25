@@ -26,3 +26,5 @@ html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "
 .rd-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .rd-drop { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; pointer-events: none;
   background: rgba(19, 160, 90, .18); border: 3px dashed var(--rp-accent, #1fb866); font-size: 20px; font-weight: 700; color: var(--rp-accent-2, #13a05a); }
+.rd-news-h { margin: 4px 0 0; font-size: 14px; }
+.rd-news { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; color: var(--rp-muted); }

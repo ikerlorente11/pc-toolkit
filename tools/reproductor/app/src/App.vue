@@ -1,6 +1,7 @@
 <template>
   <ReproductorShell :key="local ? 'local' : 'device'" :api="local?.api" :sl="local?.sl" :files="files" :device="device" :engine="engine"
-                    :view="view" :navigate="navigate" music-root="Música" cloud-name="Windows" :me="local ? undefined : me">
+                    :view="view" :navigate="navigate" music-root="Música" cloud-name="Windows" :me="local ? undefined : me"
+                    :where="local ? 'este equipo' : undefined" :device-also="local ? engine.state.status?.music_dir : undefined">
     <template #settings><SettingsView :device="device" :engine="engine" :version="version" /></template>
   </ReproductorShell>
   <div v-if="dropping" class="rd-drop">Suelta canciones para escucharlas, o carpetas para añadirlas a tu música</div>

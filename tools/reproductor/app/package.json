@@ -17,7 +17,7 @@
     "@tauri-apps/plugin-http": "^2.9.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-store": "^2.2.0",
-    "reproductor-player": "link:../../../../reproductor/player",
+    "reproductor-player": "github:ikerlorente11/reproductor#d47d7114e337ccf9ead7396fe5cfb707053f1c21&path:player",
     "vue": "^3.5.13"
   },
   "devDependencies": {

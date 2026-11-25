@@ -24,8 +24,8 @@ importers:
         specifier: ^2.2.0
         version: 2.5.1
       reproductor-player:
-        specifier: link:../../../../reproductor/player
-        version: link:../../../../reproductor/player
+        specifier: github:ikerlorente11/reproductor#d47d7114e337ccf9ead7396fe5cfb707053f1c21&path:player
+        version: https://codeload.github.com/ikerlorente11/reproductor/tar.gz/d47d7114e337ccf9ead7396fe5cfb707053f1c21#path:player(vue@3.5.46(typescript@5.9.3))
       vue:
         specifier: ^3.5.13
         version: 3.5.46(typescript@5.9.3)
@@ -571,6 +571,12 @@ packages:
     resolution: {integrity: sha512-RVHEU9/Pp1Fnjr/MpAJsZoADukCKhfIi15OunEYiGktIkYLkPVvC1sioWolGDS7XByMTx9m/IGbro0Js13zhnQ==}
     engines: {node: ^10 || ^12 || >=14}
 
+  reproductor-player@https://codeload.github.com/ikerlorente11/reproductor/tar.gz/d47d7114e337ccf9ead7396fe5cfb707053f1c21#path:player:
+    resolution: {path: player, tarball: https://codeload.github.com/ikerlorente11/reproductor/tar.gz/d47d7114e337ccf9ead7396fe5cfb707053f1c21}
+    version: 0.1.0
+    peerDependencies:
+      vue: ^3.4.0
+
   rollup@4.68.8:
     resolution: {integrity: sha512-IHx4DeeTGhoAPke6p1Wlg0JEQFyQoZQQjEe1iD+nhEERk7eoeHK9zyOpVJiGc54Z1MCgI96rN1tD7Ttub8XyPA==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
@@ -1052,6 +1058,10 @@ snapshots:
       nanoid: 3.3.20
       picocolors: 1.1.1
       source-map-js: 1.2.4
+
+  reproductor-player@https://codeload.github.com/ikerlorente11/reproductor/tar.gz/d47d7114e337ccf9ead7396fe5cfb707053f1c21#path:player(vue@3.5.46(typescript@5.9.3)):
+    dependencies:
+      vue: 3.5.46(typescript@5.9.3)
 
   rollup@4.68.8:
     dependencies:

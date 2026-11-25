@@ -55,7 +55,13 @@
 
     <section class="rd-box">
       <h2>El Reproductor</h2>
-      <p class="rp-muted rp-small">Versión {{ version || '—' }}. Las canciones que te gustan, tus listas y lo que escuchas se guardan en este equipo.</p>
+      <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+      <h3 class="rd-news-h">Novedades de la 0.1.0</h3>
+      <ul class="rd-news">
+        <li>La música de tus carpetas, por artistas, discos y carpetas, con sus portadas y sus letras (de un .lrc o de LRCLIB).</li>
+        <li>Con el motor de descargas: El Reproductor como en El Archivador. Busca artistas, discos y canciones aunque no los tengas, sigue a tus artistas, baja discos y canciones a este equipo y haz listas que se completan solas.</li>
+        <li>Las teclas multimedia del teclado, abrir canciones desde el Explorador y soltar canciones o carpetas en la ventana.</li>
+      </ul>
     </section>
   </section>
 </template>
