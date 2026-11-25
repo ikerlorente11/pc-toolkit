@@ -1,5 +1,6 @@
 <template>
   <div class="es" :class="{ 'es-reading': view.v === 'read' || view.v === 'chapter' }">
+    <UpdateBanner name="La Estantería" />
     <template v-if="view.v === 'read' && store">
       <ReaderView :key="`read${view.id}${view.as || ''}`" :id="view.id" :start-page="view.page" :as="view.as" />
     </template>
@@ -82,6 +83,7 @@ import { accountKey, desktopBackend } from './lib/offline'
 import { desktopShelf } from './lib/shelf'
 import { desktopNet } from './lib/net'
 import { desktopNative } from './lib/native'
+import UpdateBanner from './UpdateBanner.vue'
 
 /**
  * The desktop shell of La Estantería: the same library and readers as the web. First a reader of this

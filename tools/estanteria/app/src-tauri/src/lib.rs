@@ -9,6 +9,7 @@ mod lock;
 mod net;
 mod offline;
 mod place;
+mod updater;
 
 use tauri::Emitter;
 
@@ -65,6 +66,7 @@ pub fn run() {
             Ok(())
         })
         .register_asynchronous_uri_scheme_protocol("shelf", local::serve)
+        .manage(updater::Updater::default())
         .invoke_handler(tauri::generate_handler![
             secret_get, secret_set, secret_delete,
             offline::offline_start, offline::offline_list, offline::offline_remove, offline::offline_where,
@@ -73,10 +75,17 @@ pub fn run() {
             local::shelf_clear_cache, local::shelf_reveal, local::shelf_upload, local::shelf_upload_cancel,
             net::net_user_agent, net::net_download, net::net_save, net::net_save_as, net::net_downloads_dir, net::net_cancel, place::downloads_set_dir,
             net::net_stream_open, net::net_stream_write, net::net_stream_close, net::net_stream_abort,
-            lock::lock_available, lock::lock_unlock
+            lock::lock_available, lock::lock_unlock,
+            updater::update_check, updater::update_install
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running La Estantería");
+        .build(tauri::generate_context!())
+        .expect("error while running La Estantería")
+        .run(|app, event| {
+            // a new version downloaded and not installed yet installs on closing (see updater.rs)
+            if let tauri::RunEvent::Exit = event {
+                updater::on_exit(app);
+            }
+        });
 }
 
 #[cfg(test)]
