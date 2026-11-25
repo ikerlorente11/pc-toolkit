@@ -1,7 +1,9 @@
 //! El Reproductor for the desktop: a Tauri shell around the shared app (reproductor-player). The Rust side
 //! keeps the index of this computer's music and serves its songs and covers (see library.rs), and keeps the
-//! user's app password in the operating system's credential store; everything else happens in the web view.
+//! user's app password in the operating system's credential store, and runs the download engine (soundlift, see
+//! engine.rs); everything else happens in the web view.
 
+mod engine;
 mod library;
 
 use std::path::Path;
@@ -77,13 +79,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .manage(library::Library::default())
+        .manage(engine::Engine::default())
         .manage(Launch(std::sync::Mutex::new(file_argument(std::env::args()))))
         .register_asynchronous_uri_scheme_protocol("media", library::serve)
         .invoke_handler(tauri::generate_handler![
             secret_get, secret_set, secret_delete, launch_path, device_name,
             library::library_get, library::library_scan, library::library_add_root, library::library_remove_root,
-            library::library_open_file, library::library_reveal
+            library::library_open_file, library::library_reveal,
+            engine::motor_status, engine::motor_latest, engine::motor_install, engine::motor_update_ytdlp, engine::motor_set_music_dir,
+            engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running El Reproductor");
+        .build(tauri::generate_context!())
+        .expect("error while running El Reproductor")
+        .run(|app, event| {
+            // the download engine ends with the app (it would anyway: it watches the app's process)
+            if let tauri::RunEvent::Exit = event {
+                engine::stop(&app.state::<engine::Engine>());
+            }
+        });
 }

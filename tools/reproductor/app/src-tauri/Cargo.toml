@@ -29,6 +29,11 @@ serde_json = "1"
 keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
 # the songs' tags and covers (MP3, FLAC, Opus, Ogg, M4A, WAV…), pure Rust
 lofty = "0.22"
+# the download engine (engine.rs): fetched from GitHub's releases and unpacked (rustls, no OpenSSL to ship)
+ureq = { version = "2.12", default-features = false, features = ["tls", "json"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# songs deleted from the music folder go to the recycle bin
+trash = "5"
 
 [profile.release]
 codegen-units = 1

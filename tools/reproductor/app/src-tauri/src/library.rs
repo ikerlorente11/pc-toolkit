@@ -556,6 +556,8 @@ fn answer<R: Runtime>(request: &Request<Vec<u8>>, app: &AppHandle<R>) -> Respons
     let found = match path.split_once('/') {
         Some(("f", id)) => path_of(app, id),
         Some(("c", id)) => cover_file(app, id),
+        // a song of the engine's music folder, by the El Reproductor service's path (/m/Música/Artistas/…)
+        Some(("m", rest)) => crate::engine::music_path(app, &percent_decode(rest)).filter(|p| p.is_file()),
         // the song's synced lyrics, when a .lrc with its name sits next to it
         Some(("l", id)) => path_of(app, id).map(|p| p.with_extension("lrc")).filter(|p| p.is_file()),
         _ => None,
@@ -564,6 +566,25 @@ fn answer<R: Runtime>(request: &Request<Vec<u8>>, app: &AppHandle<R>) -> Respons
         Some(file) => file_response(&file, request).unwrap_or_else(missing),
         None => missing("no existe".into()),
     }
+}
+
+/// `%C3%BA` → `ú`: the path of a URL as it was written.
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(b) = u8::from_str_radix(&text[i + 1..i + 3], 16) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// The `media` protocol, answered away from the window's thread.
@@ -600,6 +621,13 @@ mod tests {
         assert!(under(r"C:\Música", r"C:\Música"));
         assert!(!under(r"C:\Música2\a.mp3", r"C:\Música"));
         assert!(under("C:/Música/a.mp3", r"C:\Música"));
+    }
+
+    #[test]
+    fn urls_decoded() {
+        assert_eq!(percent_decode("M%C3%BAsica/AC%2FDC%20x"), "Música/AC/DC x");
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("a%2"), "a%2");
     }
 
     #[test]
