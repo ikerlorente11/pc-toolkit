@@ -3,14 +3,14 @@
                     :engine="server ? null : engine" :offline="offline" :view="view" :navigate="navigate" music-root="Música"
                     :cloud-name="server ? server.connection.name || 'tu nube' : 'Windows'" :me="server ? me : undefined"
                     :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="server || local ? engine.state.status?.music_dir : undefined"
-                    :open-fetch="openFetch">
+                    :open-fetch="openFetch" :mini="mini" :mini-window="miniWindow">
     <template #settings>
       <SettingsView :device="device" :engine="engine" :libraries="remotes" :version="version" :server="server?.connection || null" :server-error="serverError" :saved="savedServer"
                     :connect="connectServer" :disconnect="disconnectServer" />
     </template>
   </ReproductorShell>
-  <UpdateBanner name="El Reproductor" />
-  <div v-if="dropping" class="rd-drop">Suelta canciones para escucharlas, o carpetas para añadirlas a tu música</div>
+  <UpdateBanner v-if="!mini" name="El Reproductor" />
+  <div v-if="dropping && !mini" class="rd-drop">Suelta canciones para escucharlas, o carpetas para añadirlas a tu música</div>
 </template>
 
 <script setup lang="ts">
@@ -27,6 +27,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { addRoot, desktopDevice, mediaUrl, openFile } from './lib/device'
 import { desktopEngine } from './lib/engine'
+import { desktopMini } from './lib/mini'
 import { desktopOffline } from './lib/offline'
 import { connect, disconnect, savedConnection, type Connection, type Server } from './lib/server'
 import SettingsView from './SettingsView.vue'
@@ -49,6 +50,9 @@ const remotes = new RemoteLibraries({
 }, (input, init) => tauriFetch(input, init), 'El Reproductor (escritorio)')
 /** a fetch that reaches any site (the browser's would not): Deezer is asked a song's info with it */
 const openFetch = (url: string, init?: RequestInit) => tauriFetch(url, init)
+/** the mini player: this window made a small card, always on top, wherever it is put (lib/mini.ts) */
+const mini = ref(false)
+const miniWindow = desktopMini((on) => { mini.value = on })
 /** this PC's music, and the libraries' joined to it (each one more folder) */
 const device = new DeviceLibrary(withRemotes(desktopDevice(), remotes))
 /** soundlift and the El Reproductor service on this PC: the app downloads music by itself (no server does the work) */

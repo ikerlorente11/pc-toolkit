@@ -24,8 +24,8 @@ importers:
         specifier: ^2.2.0
         version: 2.5.1
       reproductor-player:
-        specifier: github:ikerlorente11/reproductor#0a67d4cddf017dc33817b9f716fc0493f5109ab2&path:player
-        version: https://codeload.github.com/ikerlorente11/reproductor/tar.gz/0a67d4cddf017dc33817b9f716fc0493f5109ab2#path:player(vue@3.5.46(typescript@5.9.3))
+        specifier: github:ikerlorente11/reproductor#72c931a362ff863fbe9d4caa0eda15a7f4e195ae&path:player
+        version: https://codeload.github.com/ikerlorente11/reproductor/tar.gz/72c931a362ff863fbe9d4caa0eda15a7f4e195ae#path:player(vue@3.5.46(typescript@5.9.3))
       vue:
         specifier: ^3.5.13
         version: 3.5.46(typescript@5.9.3)
@@ -571,8 +571,8 @@ packages:
     resolution: {integrity: sha512-RVHEU9/Pp1Fnjr/MpAJsZoADukCKhfIi15OunEYiGktIkYLkPVvC1sioWolGDS7XByMTx9m/IGbro0Js13zhnQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  reproductor-player@https://codeload.github.com/ikerlorente11/reproductor/tar.gz/0a67d4cddf017dc33817b9f716fc0493f5109ab2#path:player:
-    resolution: {path: player, tarball: https://codeload.github.com/ikerlorente11/reproductor/tar.gz/0a67d4cddf017dc33817b9f716fc0493f5109ab2}
+  reproductor-player@https://codeload.github.com/ikerlorente11/reproductor/tar.gz/72c931a362ff863fbe9d4caa0eda15a7f4e195ae#path:player:
+    resolution: {path: player, tarball: https://codeload.github.com/ikerlorente11/reproductor/tar.gz/72c931a362ff863fbe9d4caa0eda15a7f4e195ae}
     version: 0.1.0
     peerDependencies:
       vue: ^3.4.0
@@ -1059,7 +1059,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.4
 
-  reproductor-player@https://codeload.github.com/ikerlorente11/reproductor/tar.gz/0a67d4cddf017dc33817b9f716fc0493f5109ab2#path:player(vue@3.5.46(typescript@5.9.3)):
+  reproductor-player@https://codeload.github.com/ikerlorente11/reproductor/tar.gz/72c931a362ff863fbe9d4caa0eda15a7f4e195ae#path:player(vue@3.5.46(typescript@5.9.3)):
     dependencies:
       vue: 3.5.46(typescript@5.9.3)
 

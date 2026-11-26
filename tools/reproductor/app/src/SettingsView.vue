@@ -84,6 +84,14 @@
     <section class="rd-box">
       <h2>El Reproductor</h2>
       <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+      <h3 class="rd-news-h">Novedades de la 0.3.0</h3>
+      <ul class="rd-news">
+        <li>Mini reproductor (el botón junto al volumen): la app se hace una tarjeta siempre encima, donde la quieras, con la portada, los controles, la cola, tus listas y tus artistas. Con la flecha, aún más pequeña: una barra como el widget del móvil. Recuerda dónde y cómo la dejaste.</li>
+        <li>Inicio: lo que más escuchas (tus listas y artistas), en grande y a un clic.</li>
+        <li>Información de la canción (ⓘ en el reproductor): todos sus artistas, su disco, la fecha, el ritmo y la discográfica.</li>
+        <li>Tema claro, oscuro o el de Windows (Ajustes › Apariencia).</li>
+        <li>La cola, la letra y los dispositivos, dentro de la ventana; «Suena en otro dispositivo» solo cuando otro de tus dispositivos está sonando.</li>
+      </ul>
       <h3 class="rd-news-h">Novedades de la 0.2.1</h3>
       <ul class="rd-news">
         <li>Se actualiza sola si no la instalaste con PC Toolkit: baja la versión nueva y la instala al cerrar (o al pulsar «Reiniciar ahora»).</li>
