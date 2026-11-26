@@ -2,7 +2,11 @@
 # Windows "Conectar dispositivo" y "Desconectar dispositivo" (HKCU\AppEvents, sin admin ni procesos).
 # Lo cargan con "." Apply.ps1 (tarea al iniciar sesión), disable.ps1, settings.ps1 y home.ps1.
 
-if (-not ('PcToolkit.DeviceSounds.WavVolume' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'WavVolume.cs') }
+if (-not ('PcToolkit.DeviceSounds.WavVolume' -as [type])) {
+    # Con Toolkit.psm1 cargado (gestor, instalar, desactivar) se compila una sola vez; en el vigilante, como siempre
+    if (Get-Command Import-ToolkitType -ErrorAction Ignore) { Import-ToolkitType 'PcToolkit.DeviceSounds.WavVolume' -Path (Join-Path $PSScriptRoot 'WavVolume.cs') }
+    else { Add-Type -Path (Join-Path $PSScriptRoot 'WavVolume.cs') }
+}
 $script:DeviceSoundsDir  = $PSScriptRoot
 $script:DeviceSoundsData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\device-sounds'
 

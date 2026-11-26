@@ -31,7 +31,8 @@ $mutex     = New-Object Threading.Mutex($false, 'PcToolkit.Manager')
 try { $owned = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned = $true }
 if (-not $owned) { [void]$showEvent.Set(); return }
 
-Add-Type @"
+# Tipos de C# (compilados una sola vez y guardados en la caché: ver Import-ToolkitType)
+Import-ToolkitType 'Native' -Source @"
 using System;
 using System.Runtime.InteropServices;
 public static class Native {
@@ -48,7 +49,7 @@ public static class Native {
 
 # Atajos de teclado globales (RegisterHotKey en una ventana oculta de solo mensajes)
 $wpfRefs = [Windows.Interop.HwndSource].Assembly.Location, [Windows.Threading.Dispatcher].Assembly.Location
-Add-Type -ReferencedAssemblies $wpfRefs -TypeDefinition @"
+Import-ToolkitType 'GlobalHotkeys' -ReferencedAssemblies $wpfRefs -Source @"
 using System;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
@@ -79,6 +80,7 @@ public class GlobalHotkeys {
 "@
 
 $LogFile = Join-Path (Get-ToolkitRoot) 'manager.log'
+$ToolkitVersion = Get-ToolkitVersion   # leída una vez: al actualizarse PC Toolkit, el gestor se reinicia
 function Write-ManagerLog($msg) {
     try { Add-Content $LogFile ("{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg) -Encoding UTF8 } catch {}
 }
@@ -108,7 +110,7 @@ $T.Accent      = "#FF$accent"
 $T.AccentHover = "#E0$accent"
 
 function ConvertFrom-Xaml([string]$xaml) {
-    foreach ($k in $T.Keys) { $xaml = $xaml.Replace("@$k@", $T[$k]) }
+    if ($xaml.IndexOf('@') -ge 0) { foreach ($k in $T.Keys) { $xaml = $xaml.Replace("@$k@", $T[$k]) } }
     [Windows.Markup.XamlReader]::Parse($xaml)
 }
 $XamlNs = 'xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
@@ -158,12 +160,17 @@ function Move-Flyout {
     $win.Top  = $wa.Bottom - $win.ActualHeight - 12
 }
 
-# Abrir es inmediato: se enseña la portada ya hecha (se prepara al arrancar y se mantiene al día) y, justo
-# después, el reloj mira si algo cambió y solo entonces la rehace. Rehacerla cuesta segundos (el XAML de cada
-# tarjeta y los home.ps1), y hacerlo antes de enseñar el panel era lo que hacía que tardara en abrirse.
+# Próxima comprobación de la firma de la página dentro de $Ms milisegundos (ver el reloj)
+$Clock = [Diagnostics.Stopwatch]::StartNew()   # milisegundos desde que arrancó el gestor
+$script:sigCheckAt = 0
+function Set-SignatureCheck([int]$Ms) { $script:sigCheckAt = $Clock.ElapsedMilliseconds + $Ms }
+
+# Abrir es inmediato: se enseña la portada ya hecha (se prepara al arrancar y se guarda) y, cuando termina la
+# animación, el reloj mira si algo cambió y rehace solo las tarjetas que lo necesiten. Hacerlo antes de enseñar
+# el panel retrasaba la apertura, y hacerlo durante la animación la entrecortaba.
 function Show-Flyout {
-    if ($script:page -ne 'home' -or -not $script:homeReady) { Show-Home }
-    $script:ticks = 4                       # el siguiente tic del reloj comprueba la firma de la página
+    if ($script:page -ne 'home' -or -not $script:homeReady) { Show-Home -Quick }
+    Set-SignatureCheck 350
     $ui.Anim.Opacity = 0
     $win.Show()
     # Lanzado oculto (run-hidden.vbs), Windows aplica SW_HIDE al primer ShowWindow del proceso: se repite
@@ -324,7 +331,15 @@ function Show-Error([string]$Text) {
 }
 
 function Invoke-Safe([scriptblock]$Block) {
+    Set-HomeCardDirty
     try { & $Block } catch { Show-Error $_.Exception.Message }
+}
+
+# Lo que se toca en la página de una herramienta puede cambiar su tarjeta de la portada sin cambiar su firma:
+# esa tarjeta se rehace al volver (las demás se reutilizan)
+$script:homeDirty = @{}
+function Set-HomeCardDirty {
+    if ($script:page -like 'tool:*') { $script:homeDirty[$script:page.Substring(5)] = $true }
 }
 
 # --- Acciones en segundo plano (no bloquean el panel) ---
@@ -381,6 +396,7 @@ function Set-Page($Element, [string]$Title, [bool]$Back) {
 }
 
 function Update-Page {
+    Set-HomeCardDirty
     switch -Wildcard ($script:page) {
         'home'     { Show-Home }
         'settings' { Show-SettingsPage }
@@ -398,18 +414,40 @@ function Get-StatusText($Tool, [string]$State) {
     if (Get-ToolProcess $Tool) { @('Activa · en marcha', 'OkBrush') } else { @('Activa · no está en marcha', 'WarnBrush') }
 }
 
-# Firma de la página de inicio: si no cambia, no se repinta
-function Get-HomeSignature {
-    # Una sola consulta de procesos para todas las herramientas (una por herramienta tardaba medio segundo)
-    $cmds = if ($tools | Where-Object process) {
-        @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -Property CommandLine | ForEach-Object CommandLine)
+# Firma de la portada por partes: una por herramienta (lo que se ve en su tarjeta) y una general (vista, grupos
+# plegados, orden, qué está instalado y en qué grupo, y el aviso de versión nueva de PC Toolkit). Si solo cambian
+# las de algunas herramientas, se rehacen solo sus tarjetas; si cambia la general, la portada entera.
+function Get-HomeSignatureParts {
+    $procs = if ($tools | Where-Object process) { @(Get-PowerShellProcesses) }   # una vez para todas
+    $states = Get-ToolStates $tools                                                # una consulta para todas
+    $p = @{ Tools = @{}; States = $states }
+    $layout = foreach ($t in $tools) {
+        $id = $t.id
+        $state = $states[$id]
+        $busyText = if ($busy.ContainsKey($id)) { Get-BusyText $id }
+        $own = if ($script:HomeSignatures.ContainsKey($id)) {
+            try { & $script:HomeSignatures[$id] } catch { "error: $($_.Exception.Message)" }
+        }
+        $running = if ($t.process) { $pattern = $t.process; [bool]($procs | Where-Object { $_.CommandLine -match $pattern }) }
+        $upd = if ($t.HasUpdates -and $state -ne 'NotInstalled') { $u = Get-UpdateState $id; "$($u.Available)>$($u.Latest)" }
+        $p.Tools[$id] = "$state|$busyText|$($errors[$id])|$running|$own|$upd"
+        "$id=$($state -eq 'NotInstalled')/$($t.category)"
     }
-    (($tools | ForEach-Object {
-        $busyText = if ($busy.ContainsKey($_.id)) { Get-BusyText $_.id }
-        $own = if ($script:HomeSignatures.ContainsKey($_.id)) { & $script:HomeSignatures[$_.id] }
-        $running = if ($_.process) { $p = $_.process; [bool]($cmds | Where-Object { $_ -match $p }) }
-        "$($_.id)=$(Get-ToolState $_)|$busyText|$($errors[$_.id])|$running|$own"
-    }) -join ';') + "|upd=$(Get-UpdatesSignature)"
+    $collapsed = ($script:prefs.Collapsed.Keys | Sort-Object | ForEach-Object { "$_=$($script:prefs.Collapsed[$_])" }) -join ','
+    $p.Global = "$($script:prefs.View)|$collapsed|$($layout -join ',')|$(Get-UpdatesSignature 'pctoolkit')"
+    $p
+}
+
+function Join-HomeSignature($Parts) {
+    "$($Parts.Global);" + (($tools | ForEach-Object { "$($_.id)=$($Parts.Tools[$_.id])" }) -join ';')
+}
+
+# Firma de la página de inicio (la mira el reloj): si no cambia, no se repinta. Lo calculado se deja a mano un
+# momento para que Show-Home, si hay que repintar, no lo vuelva a calcular.
+function Get-HomeSignature {
+    $parts = Get-HomeSignatureParts
+    $script:freshHomeParts = @{ At = $Clock.ElapsedMilliseconds; Parts = $parts }
+    Join-HomeSignature $parts
 }
 
 # Firma de la página de una herramienta: su estado + lo que diga su settings.ps1
@@ -688,15 +726,64 @@ function New-AvailableTile($Tool) {
 # Orden de los temas en la portada; uno que no esté aquí va al final
 $CategoryOrder = @('Sonido', 'Escritorio', 'Juegos', 'Apps', 'Otras')
 
-function Show-Home {
+# Tarjeta (vista de lista) o mosaico (cuadrícula) de una herramienta en la portada
+function New-HomeItem($Tool, [string]$State, [bool]$Grid) {
+    if ($State -ne 'NotInstalled') {
+        if ($Grid) { New-InstalledTile $Tool $State } else { New-InstalledCard $Tool $State }
+    } else {
+        if ($Grid) { New-AvailableTile $Tool } else { New-AvailableCard $Tool }
+    }
+}
+
+# Portada. Se guarda hecha ($script:homeCache) y, al volver a ella o al cambiar algo, solo se rehacen las
+# tarjetas cuya parte de la firma ha cambiado (o que se tocaron en su página); entera, solo si cambia la parte
+# general. -Quick: si está hecha y no hay nada marcado, se enseña tal cual y el reloj comprueba la firma en
+# cuanto termina la animación (volver o abrir el panel es instantáneo).
+$script:homeCache = $null
+function Show-Home([switch]$Quick) {
     $script:page = 'home'
     $script:PageSignature = { Get-HomeSignature }
+    $c = $script:homeCache
+    if ($Quick -and $c -and -not $script:homeDirty.Count) {
+        Set-Page $c.Panel 'PC Toolkit' $false
+        $script:lastSignature = Join-HomeSignature $c
+        Set-SignatureCheck 350
+        return
+    }
+    $fresh = $script:freshHomeParts
+    $script:freshHomeParts = $null
+    $parts = if ($fresh -and ($Clock.ElapsedMilliseconds - $fresh.At) -lt 100) { $fresh.Parts } else { Get-HomeSignatureParts }
+    if ($c -and $c.Global -eq $parts.Global) {
+        $ok = $true
+        foreach ($t in $tools) {
+            $id = $t.id
+            if ($c.Tools[$id] -eq $parts.Tools[$id] -and -not $script:homeDirty.ContainsKey($id)) { continue }
+            $old = $c.Cards[$id]
+            if (-not $old) { continue }   # en un grupo plegado
+            $parent = $old.Parent
+            if (-not $parent) { $ok = $false; break }
+            $new = New-HomeItem $t $parts.States[$id] $c.Grid
+            $i = $parent.Children.IndexOf($old)
+            $parent.Children.RemoveAt($i)
+            $parent.Children.Insert($i, $new)
+            $c.Cards[$id] = $new
+        }
+        if ($ok) {
+            $c.Tools = $parts.Tools
+            $script:homeDirty = @{}
+            Set-Page $c.Panel 'PC Toolkit' $false
+            $script:lastSignature = Join-HomeSignature $parts
+            return
+        }
+    }
+
     $grid = $script:prefs.View -eq 'grid'
+    $states = $parts.States
+    $cards = @{}
+    $ownSignatures = $script:HomeSignatures.Count
     $panel = New-Ui '<StackPanel/>'
     $toolkitCard = New-ToolkitUpdateCard   # solo si hay versión nueva de PC Toolkit
     if ($toolkitCard) { [void]$panel.Children.Add($toolkitCard) }
-    $states = @{}
-    foreach ($t in $tools) { $states[$t.id] = Get-ToolState $t }
     # Las instaladas, por temas ("category" de tool.json) cuando hay más de uno; cada grupo se pliega
     $installed = @($tools | Where-Object { $states[$_.id] -ne 'NotInstalled' })
     $cats = @($installed | ForEach-Object { if ($_.category) { $_.category } else { 'Otras' } } | Select-Object -Unique)
@@ -705,8 +792,8 @@ function Show-Home {
         $groups += @{ Key = 'installed'; Title = 'Instaladas'; Items = $installed }
     } else {
         $known = @($CategoryOrder | Where-Object { $_ -in $cats }) + @($cats | Where-Object { $_ -notin $CategoryOrder })
-        foreach ($c in $known) {
-            $groups += @{ Key = "cat:$c"; Title = $c; Items = @($installed | Where-Object { $(if ($_.category) { $_.category } else { 'Otras' }) -eq $c }) }
+        foreach ($cat in $known) {
+            $groups += @{ Key = "cat:$cat"; Title = $cat; Items = @($installed | Where-Object { $(if ($_.category) { $_.category } else { 'Otras' }) -eq $cat }) }
         }
     }
     $groups += @{ Key = 'available'; Title = 'Disponibles'; Items = @($tools | Where-Object { $states[$_.id] -eq 'NotInstalled' }) }
@@ -717,21 +804,22 @@ function Show-Home {
         if (-not $g.Items) { [void]$panel.Children.Add((New-Hint 'No hay herramientas instaladas.')); continue }
         $container = if ($grid) { New-Ui '<UniformGrid Columns="2" Margin="0,0,-4,0"/>' } else { $panel }
         foreach ($t in $g.Items) {
-            $item = if ($g.Key -ne 'available') {
-                if ($grid) { New-InstalledTile $t $states[$t.id] } else { New-InstalledCard $t $states[$t.id] }
-            } else {
-                if ($grid) { New-AvailableTile $t } else { New-AvailableCard $t }
-            }
+            $item = New-HomeItem $t $states[$t.id] $grid
+            $cards[$t.id] = $item
             [void]$container.Children.Add($item)
         }
         if ($grid) { [void]$panel.Children.Add($container) }
     }
     Set-Page $panel 'PC Toolkit' $false
+    # La primera vez, los home.ps1 añaden su parte de la firma al hacer su tarjeta: se calcula otra vez con ella
+    if ($script:HomeSignatures.Count -ne $ownSignatures) { $parts = Get-HomeSignatureParts }
     $script:homeReady = $true
+    $script:homeDirty = @{}
+    $script:homeCache = @{ Panel = $panel; Grid = $grid; Global = $parts.Global; Tools = $parts.Tools; Cards = $cards }
     # El botón de vista muestra la vista a la que se cambia
     $ui.ViewButton.Content = if ($grid) { [string][char]0xE8FD } else { [string][char]0xF0E2 }
     [Windows.Automation.AutomationProperties]::SetName($ui.ViewButton, $(if ($grid) { 'Ver como lista' } else { 'Ver como cuadrícula' }))
-    $script:lastSignature = Get-HomeSignature
+    $script:lastSignature = Join-HomeSignature $parts
 }
 
 $NotInstalledCardXaml = @'
@@ -950,7 +1038,7 @@ $script:updatesRev    = 0       # sube con cada cambio (las firmas de las págin
 $script:updateRetry   = @{}     # id -> cuándo reintentar (su app estaba abierta)
 $script:updateErrors  = @{}     # id -> error de su última actualización automática
 $script:autoTried     = @{}     # id -> versión que ya falló en automático: no se insiste hasta la próxima revisión
-$script:appInfo       = @{}     # id -> @{ At; Info }: versión instalada, en uso... (se guarda unos segundos)
+$script:appInfo       = @{}     # id -> @{ Until; Info }: versión instalada, en uso... (se guarda un minuto)
 $script:toolkitQueued = $null   # 'auto' o 'manual': actualizar PC Toolkit cuando acaben las demás actualizaciones
 $script:toolkitUpdating = $null # cuándo se lanzó la actualización de PC Toolkit (el instalador cierra el gestor)
 
@@ -989,15 +1077,16 @@ function Set-AutoUpdate([string]$Id, [bool]$On) {
 function Get-UpdatableTools { @($tools | Where-Object { $_.HasUpdates -and (Get-ToolState $_) -ne 'NotInstalled' }) }
 
 # Versión instalada, si está abierta y si actualizarla pide administrador (update.ps1 -Action info), guardado
-# unos segundos: las firmas de las páginas lo piden a menudo
+# un minuto: las firmas de las páginas lo piden a menudo y cada consulta cuesta ~40 ms. Lo que caduca en cada app
+# varía un poco para que no se pregunte por todas en el mismo tic del reloj (sería un tirón).
 function Get-AppInfo($Tool, [switch]$Fresh) {
     $c = $script:appInfo[$Tool.id]
-    if (-not $Fresh -and $c -and ((Get-Date) - $c.At).TotalSeconds -lt 15) { return $c.Info }
+    if (-not $Fresh -and $c -and (Get-Date) -lt $c.Until) { return $c.Info }
     $info = try { Get-ToolAppInfo $Tool } catch {
         Write-ManagerLog "ERROR update.ps1 de $($Tool.id): $($_.Exception.Message)"
         [pscustomobject]@{ Installed = $null; InUse = $false; Elevated = $false }
     }
-    $script:appInfo[$Tool.id] = @{ At = Get-Date; Info = $info }
+    $script:appInfo[$Tool.id] = @{ Until = (Get-Date).AddSeconds((Get-Random -Minimum 45 -Maximum 75)); Info = $info }
     $info
 }
 
@@ -1006,7 +1095,7 @@ function Get-AppInfo($Tool, [switch]$Fresh) {
 function Get-UpdateState([string]$Id) {
     if ($Id -eq 'pctoolkit') {
         $tool = $null
-        $info = [pscustomobject]@{ Installed = Get-ToolkitVersion; InUse = $false; Elevated = $false }
+        $info = [pscustomobject]@{ Installed = $ToolkitVersion; InUse = $false; Elevated = $false }
     } else {
         $tool = $tools | Where-Object id -eq $Id
         $info = Get-AppInfo $tool
@@ -1278,7 +1367,7 @@ function New-UpdatesCard {
 '@
     $states = Get-UpdateStates
     $pending = @($states | Where-Object { $_.Available -or ($busy.ContainsKey($_.Id) -and $busy[$_.Id].Action -in 'update', 'autoupdate') })
-    $card.FindName('T').Text = "PC Toolkit $(Get-ToolkitVersion)"
+    $card.FindName('T').Text = "PC Toolkit $ToolkitVersion"
     $d = $card.FindName('D')
     $check = $card.FindName('Check')
     $check.Add_Click({ Invoke-Safe { Start-UpdateCheck; Update-Page } })
@@ -1371,7 +1460,7 @@ function New-ToolkitManagedSection($Tool) {
   </Grid>
 </Border>
 '@
-    $card.FindName('D').Text = "Es parte de PC Toolkit $(Get-ToolkitVersion): llega nueva al actualizarlo, desde Ajustes › Actualizaciones."
+    $card.FindName('D').Text = "Es parte de PC Toolkit $($ToolkitVersion): llega nueva al actualizarlo, desde Ajustes › Actualizaciones."
     $card.FindName('Go').Add_Click({ Show-SettingsPage })
     [void]$p.Children.Add($card)
     $p
@@ -1390,10 +1479,10 @@ function New-ToolkitUpdateCard {
 $ui.BackButton.Add_Click({
     if ($script:page -like 'log:*') { Show-ToolPage ($script:page.Substring(4)) }
     elseif ($script:page -eq 'order') { Show-SettingsPage }
-    else { Show-Home }
+    else { Show-Home -Quick }
 })
 $ui.ViewButton.Add_Click({ Switch-HomeView })
-$ui.SettingsButton.Add_Click({ if ($script:page -eq 'settings') { Show-Home } else { Show-SettingsPage } })
+$ui.SettingsButton.Add_Click({ if ($script:page -eq 'settings') { Show-Home -Quick } else { Show-SettingsPage } })
 
 # --- Icono de la bandeja ---
 
@@ -1415,12 +1504,18 @@ $script:capturing = $null     # id de la herramienta cuyo atajo se está graband
 $script:captureHint = $null
 
 # Atajos elegidos por el usuario: id -> "Ctrl+Alt+S", o "" si lo ha desactivado
+# Se lee del archivo una vez y se guarda en memoria (solo lo cambia el gestor, con Save-ToolHotkey); las firmas
+# de la portada lo piden en cada comprobación
+$script:hotkeyOverrides = $null
 function Get-HotkeyOverrides {
-    $o = @{}
-    if (Test-Path $HotkeysFile) {
-        try { foreach ($p in (Get-Content $HotkeysFile -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties) { $o[$p.Name] = [string]$p.Value } } catch {}
+    if ($null -eq $script:hotkeyOverrides) {
+        $o = @{}
+        if (Test-Path $HotkeysFile) {
+            try { foreach ($p in (Get-Content $HotkeysFile -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties) { $o[$p.Name] = [string]$p.Value } } catch {}
+        }
+        $script:hotkeyOverrides = $o
     }
-    $o
+    $script:hotkeyOverrides
 }
 
 function Get-ToolHotkey($Tool) {
@@ -1619,7 +1714,6 @@ Update-Hotkeys
 
 # --- Reloj: otra instancia pide mostrar, progreso de acciones, refresco del estado ---
 
-$script:ticks = 0
 $script:exitAt = $null
 $script:bannerUntil = $null
 
@@ -1632,7 +1726,7 @@ if ($script:updates.Checked -and ((Get-Date) - $script:updates.Checked).TotalMin
 # Si PC Toolkit acaba de actualizarse (con el botón o solo), se avisa al arrancar la versión nueva
 $script:startupOsd = $null
 $script:startupOsdAt = (Get-Date).AddSeconds(5)   # cuando el gestor ya está en marcha
-$currentVersion = Get-ToolkitVersion
+$currentVersion = $ToolkitVersion
 if ($script:prefs.LastVersion -ne $currentVersion) {
     if (Test-NewerVersion $currentVersion $script:prefs.LastVersion) { $script:startupOsd = $currentVersion }
     $script:prefs.LastVersion = $currentVersion
@@ -1690,9 +1784,10 @@ $timer.Add_Tick({
 
         $finished = Update-Busy
         if (-not $win.IsVisible) { return }
-        $script:ticks++
         if ($finished) { Update-Page; return }
-        if (($busy.Count -or $script:ticks % 5 -eq 0) -and $script:PageSignature) {
+        # La firma de la página se mira cada 2 s (en cada tic mientras algo se instala o activa)
+        if ($script:PageSignature -and ($busy.Count -or $Clock.ElapsedMilliseconds -ge $script:sigCheckAt)) {
+            Set-SignatureCheck 2000
             $sig = & $script:PageSignature
             if ($sig -ne $script:lastSignature) { Update-Page }
         }
@@ -1700,9 +1795,18 @@ $timer.Add_Tick({
 })
 $timer.Start()
 
-# La portada se prepara ya, con el panel oculto, para que el primer clic en el icono la enseñe al instante
+# La portada se prepara ya, con el panel oculto, para que el primer clic en el icono la enseñe al instante;
+# también se crean ya las ventanas del panel y del aviso (sin enseñarlas), que la primera vez tardan
 if ($Show) { Show-Flyout }
-else { [void]$win.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::ApplicationIdle, [Action]{ try { Show-Home } catch { Write-ManagerLog "ERROR (portada): $($_.Exception.Message)" } }) }
+else {
+    [void]$win.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::ApplicationIdle, [Action]{
+        try {
+            Show-Home
+            [void](New-Object Windows.Interop.WindowInteropHelper $win).EnsureHandle()
+            [void](New-Object Windows.Interop.WindowInteropHelper $osd).EnsureHandle()
+        } catch { Write-ManagerLog "ERROR (portada): $($_.Exception.Message)" }
+    })
+}
 $app.Run()
 
 $timer.Stop()

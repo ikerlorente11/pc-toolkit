@@ -1,7 +1,11 @@
 ﻿# common.ps1 - Configuración de Keyboard Sound y registro de su tarea. Lo cargan con "." el vigilante,
 # install.ps1 y settings.ps1. Funciones "script:" para que sigan vivas en los botones del gestor.
 
-if (-not ('PcToolkit.KeyboardSound.Player' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'KeyboardSound.cs') }
+if (-not ('PcToolkit.KeyboardSound.Player' -as [type])) {
+    # Con Toolkit.psm1 cargado (gestor, instalar, desactivar) se compila una sola vez; en el vigilante, como siempre
+    if (Get-Command Import-ToolkitType -ErrorAction Ignore) { Import-ToolkitType 'PcToolkit.KeyboardSound.Player' -Path (Join-Path $PSScriptRoot 'KeyboardSound.cs') }
+    else { Add-Type -Path (Join-Path $PSScriptRoot 'KeyboardSound.cs') }
+}
 $script:KeyboardSoundDir  = $PSScriptRoot
 $script:KeyboardSoundData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\keyboard-sound'
 

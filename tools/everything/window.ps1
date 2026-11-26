@@ -7,7 +7,7 @@
 
 if (-not ('PcToolkit.Everything.Client' -as [type])) {
     $refs = [Windows.Interop.HwndSource].Assembly.Location, [Windows.Threading.Dispatcher].Assembly.Location
-    Add-Type -Path (Join-Path $PSScriptRoot 'Everything.cs') -ReferencedAssemblies $refs
+    Import-ToolkitType 'PcToolkit.Everything.Client' -Path (Join-Path $PSScriptRoot 'Everything.cs') -ReferencedAssemblies $refs
 }
 
 $script:EvMaxResults = 100

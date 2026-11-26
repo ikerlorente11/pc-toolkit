@@ -386,7 +386,8 @@ tools/<id>/                   una carpeta por herramienta
 ```
 
 Se instala en `%LOCALAPPDATA%\PcToolkit` (fuera de OneDrive):
-`app\` con el código y `data\<id>\` con la configuración y los logs de cada herramienta.
+`app\` con el código, `data\<id>\` con la configuración y los logs de cada herramienta y `cache\` con el
+código C# de las herramientas ya compilado (`Import-ToolkitType`: se compila una vez y, si cambia, otra; se puede borrar).
 
 Cada herramienta es una **tarea programada** de Windows (con el nombre que diga su
 `tool.json`): sin tarea = no instalada, tarea deshabilitada = desactivada.
@@ -400,7 +401,8 @@ Crea `tools/<id>/` con:
 | `tool.json` | sí | `id`, `name`, `icon` (código hex de un icono de Segoe Fluent Icons), `summary` (3-4 palabras para la portada), `category` (tema con el que se agrupa en la portada: Sonido, Escritorio, Juegos, Apps), `description`, `task` (nombre de la tarea), `process` (regex de su script si se queda en marcha), `log` (nombre del log en su carpeta de datos), `installNote` (opcional: aviso junto al botón Instalar si no se instala "para el usuario, sin admin") |
 | `install.ps1` | sí | Registra la tarea programada (usa `New-HiddenTaskAction` de `core/Toolkit.psm1`). Si integra un programa de otro fabricante, lo instala con `Install-WingetPackage` (`-Elevated` si necesita admin: Windows pregunta) y cuenta el progreso con `Set-ToolStatus` |
 | `settings.ps1` | no | Página de ajustes dentro del panel; usa los helpers descritos al principio de `manager/PcToolkit.ps1` (nada de ventanas de Windows) |
-| `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers) |
+| `home.ps1` | no | Bloque dentro de su tarjeta en la portada del panel (mismos helpers). Su firma (`$script:HomeSignatures['<id>']`) se mira cada 2 s con el panel abierto: que sea barata (`Test-ProcessRunning` en vez de `Get-Process`) |
+| `*.cs` | no | Código C# que necesite: cárgalo con `Import-ToolkitType '<Tipo>' -Path ...` (se compila una sola vez) en vez de `Add-Type` |
 | `hotkey` en `tool.json` | no | `{ "keys": "Ctrl+Alt+A", "script": "x.ps1" }`: atajo global mientras esté activa (el usuario puede cambiarlo; se guarda en `data\hotkeys.json`); el script devuelve el texto del aviso (si no devuelve nada, no hay aviso) |
 | `disable.ps1` | no | Deja el sistema como estaba al desactivarla |
 | `update.ps1` + `"updates": true` en `tool.json` | no | Si instala un programa con versiones propias: con `-Action info` devuelve `Installed` (versión instalada), `InUse` (está abierto y actualizarlo obligaría a cerrarlo) y `Elevated` (actualizarlo pide admin: entonces nunca se actualiza solo); con `-Action latest`, la última versión publicada (pocas llamadas a la red); con `-Action update`, lo actualiza y devuelve la versión nueva (con `-Auto`, sin cerrarlo nunca). El gestor añade la sección Actualizaciones y lo revisa con los demás (ver `core/Toolkit.psm1`) |

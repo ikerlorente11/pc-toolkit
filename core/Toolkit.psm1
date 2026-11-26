@@ -66,6 +66,52 @@ function Get-ToolAppInfo($Tool)   { & (Join-Path $Tool.Dir 'update.ps1') -Action
 function Get-ToolAppLatest($Tool) { [string](& (Join-Path $Tool.Dir 'update.ps1') -Action latest) }
 function Update-ToolApp($Tool, [switch]$Auto) { [string](@(& (Join-Path $Tool.Dir 'update.ps1') -Action update -Auto:$Auto)[-1]) }
 
+# Carga un tipo de C# compilandolo solo la primera vez: la DLL se guarda en %LOCALAPPDATA%\PcToolkit\cache con
+# el hash del codigo en el nombre (si el codigo cambia, se compila otra). Compilar con Add-Type cuesta de 150 a
+# 500 ms por archivo en cada arranque; cargar la DLL, unos pocos. Si algo falla, se compila como siempre.
+function Import-ToolkitType {
+    param(
+        [Parameter(Mandatory)][string]$TypeName,
+        [string]$Path,
+        [string]$Source,
+        [string[]]$ReferencedAssemblies = @()
+    )
+    if ($TypeName -as [type]) { return }
+    if ($Path) { $Source = [IO.File]::ReadAllText($Path) }
+    $refs = @($ReferencedAssemblies | Where-Object { $_ })
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        $bytes = [Text.Encoding]::UTF8.GetBytes("$Source|$($refs -join '|')|$($PSVersionTable.CLRVersion)")
+        $hash = -join ($sha.ComputeHash($bytes)[0..7] | ForEach-Object { $_.ToString('x2') })
+        # Con .NET y no con cmdlets (Test-Path, Add-Type -Path...): en un proceso recien abierto, el primer uso de
+        # cada cmdlet cuesta mas que cargar la DLL
+        $dir = Join-Path $Root 'cache'
+        $base = $TypeName -replace '[^\w]', '-'
+        $dll = Join-Path $dir "$base-$hash.dll"
+        if (-not [IO.File]::Exists($dll)) {
+            [void][IO.Directory]::CreateDirectory($dir)
+            # Se compila con otro nombre y se renombra: otro proceso puede estar compilando el mismo a la vez
+            $tmp = Join-Path $dir "$base-$hash-$PID.dll"
+            $p = @{ TypeDefinition = $Source; OutputAssembly = $tmp; OutputType = 'Library' }
+            if ($refs) { $p.ReferencedAssemblies = $refs }
+            Add-Type @p
+            try { [IO.File]::Move($tmp, $dll) } catch { try { [IO.File]::Delete($tmp) } catch {} }
+            # Las de versiones anteriores del mismo tipo
+            foreach ($old in [IO.Directory]::GetFiles($dir, "$base-*.dll")) {
+                if ($old -ne $dll) { try { [IO.File]::Delete($old) } catch {} }
+            }
+        }
+        # Desde memoria: el archivo no queda bloqueado (se puede desinstalar o limpiar la cache con procesos abiertos)
+        [void][Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
+        if (-not ($TypeName -as [type])) { throw "La DLL $dll no tiene el tipo $TypeName." }
+    } catch {
+        if ($TypeName -as [type]) { return }
+        $p = @{ TypeDefinition = $Source }
+        if ($refs) { $p.ReferencedAssemblies = $refs }
+        Add-Type @p
+    }
+}
+
 function Get-ToolDataDir([string]$Id) {
     $dir = Join-Path $Root "data\$Id"
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -125,14 +171,68 @@ function New-HiddenTaskAction([string]$Script) {
     New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" `"$Script`""
 }
 
-# Estado por COM del Programador de tareas: mucho mas rapido que Get-ScheduledTask
-function Get-ToolState($Tool) {
-    if (-not $script:scheduler) {
-        $script:scheduler = New-Object -ComObject Schedule.Service
-        $script:scheduler.Connect()
+# Tarea de la herramienta por COM del Programador de tareas (o $null si no existe): mucho mas rapido que
+# Get-ScheduledTask, que ademas tiene que cargar su modulo (casi un segundo la primera vez)
+function Get-TaskFolder {
+    if (-not $script:taskFolder) {
+        $scheduler = New-Object -ComObject Schedule.Service
+        $scheduler.Connect()
+        $script:taskFolder = $scheduler.GetFolder('\')
     }
-    try { $task = $script:scheduler.GetFolder('\').GetTask($Tool.task) } catch { return 'NotInstalled' }
-    if ($task.Enabled) { 'Enabled' } else { 'Disabled' }
+    $script:taskFolder
+}
+
+function Get-ToolTask($Tool) {
+    for ($try = 0; $try -lt 2; $try++) {
+        try { return (Get-TaskFolder).GetTask($Tool.task) }
+        catch {
+            if ($_.Exception.HResult -eq -2147024894) { return $null }   # 0x80070002: no existe
+            $script:taskFolder = $null   # conexion perdida (p. ej., se reinicio el servicio): se reconecta
+        }
+    }
+    $null
+}
+
+function Get-ToolState($Tool) {
+    $task = Get-ToolTask $Tool
+    if (-not $task) { 'NotInstalled' } elseif ($task.Enabled) { 'Enabled' } else { 'Disabled' }
+}
+
+# Estado de varias herramientas (id -> estado) con una sola consulta: mas rapido que Get-ToolState con cada una,
+# sobre todo con las no instaladas (cada una es una excepcion)
+function Get-ToolStates($Tools) {
+    $enabled = @{}   # tarea -> activada (las claves no distinguen mayusculas, como los nombres de tarea)
+    for ($try = 0; $try -lt 2; $try++) {
+        try { foreach ($t in (Get-TaskFolder).GetTasks(1)) { $enabled[$t.Name] = [bool]$t.Enabled }; break }   # 1: tambien las ocultas
+        catch { $enabled = @{}; $script:taskFolder = $null }
+    }
+    $states = @{}
+    foreach ($t in $Tools) {
+        $states[$t.id] = if (-not $enabled.ContainsKey($t.task)) { 'NotInstalled' } elseif ($enabled[$t.task]) { 'Enabled' } else { 'Disabled' }
+    }
+    $states
+}
+
+# Si hay algun proceso con ese nombre (sin .exe); con -ThisSession, en la sesion de este proceso. La lista de
+# procesos se toma como mucho una vez por segundo: las firmas del gestor preguntan por varios programas seguidos
+# y cada vuelta a todos los procesos del sistema cuesta ~10 ms
+function Test-ProcessRunning([string]$Name, [switch]$ThisSession) {
+    $now = [DateTime]::UtcNow
+    if (-not $script:procSnapshot -or ($now - $script:procSnapshot.At).TotalMilliseconds -gt 1000) {
+        $names = @{}
+        foreach ($p in [Diagnostics.Process]::GetProcesses()) {
+            $sessions = $names[$p.ProcessName]
+            if (-not $sessions) { $sessions = $names[$p.ProcessName] = New-Object Collections.Generic.List[int] }
+            $sessions.Add($p.SessionId)
+            $p.Dispose()
+        }
+        if ($null -eq $script:mySession) { $script:mySession = [Diagnostics.Process]::GetCurrentProcess().SessionId }
+        $script:procSnapshot = @{ At = $now; Names = $names }
+    }
+    $sessions = $script:procSnapshot.Names[$Name]
+    if (-not $sessions) { return $false }
+    if (-not $ThisSession) { return $true }
+    $sessions.Contains($script:mySession)
 }
 
 # Ejecuta install/uninstall/enable/disable en otro proceso para no bloquear el gestor.
@@ -149,10 +249,27 @@ function Start-ToolAction($Tool, [ValidateSet('install', 'uninstall', 'enable', 
     [pscustomobject]@{ Process = [Diagnostics.Process]::Start($psi); StatusFile = $status; Action = $Action }
 }
 
+# Procesos powershell.exe en marcha con su linea de comandos: @{ ProcessId; CommandLine }. Preguntarlo a WMI
+# cuesta 100-200 ms, asi que solo se hace cuando cambia la lista de powershell.exe (mirarla cuesta ~1 ms)
+function Get-PowerShellProcesses {
+    $procs = [Diagnostics.Process]::GetProcessesByName('powershell')
+    $key = (@($procs | ForEach-Object {
+        $start = try { $_.StartTime.Ticks } catch { 0 }   # por si se reutiliza un PID
+        "$($_.Id):$start"
+    }) | Sort-Object) -join ','
+    foreach ($p in $procs) { $p.Dispose() }
+    if ($script:psProcKey -ne $key) {
+        $script:psProcList = @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -Property ProcessId, CommandLine |
+            ForEach-Object { [pscustomobject]@{ ProcessId = $_.ProcessId; CommandLine = $_.CommandLine } })
+        $script:psProcKey = $key
+    }
+    $script:psProcList
+}
+
 function Get-ToolProcess($Tool) {
     if (-not $Tool.process) { return }
-    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
-        Where-Object { $_.CommandLine -match $Tool.process }
+    $pattern = $Tool.process
+    Get-PowerShellProcesses | Where-Object { $_.CommandLine -match $pattern }
 }
 
 function Stop-ToolProcess($Tool) {
@@ -171,13 +288,19 @@ function Install-Tool($Tool, [switch]$Disabled) {
     if ($Disabled) { Disable-Tool $Tool } else { Start-ScheduledTask -TaskName $Tool.task }
 }
 
+# Activar y desactivar van por COM (Get-ToolTask): con Enable-/Disable-ScheduledTask, cargar su modulo
+# hacia que el interruptor tardara un par de segundos en responder
 function Enable-Tool($Tool) {
-    Enable-ScheduledTask -TaskName $Tool.task | Out-Null
-    Start-ScheduledTask -TaskName $Tool.task
+    $task = Get-ToolTask $Tool
+    if (-not $task) { throw "No se encuentra la tarea programada $($Tool.task)." }
+    $task.Enabled = $true
+    [void]$task.Run($null)
 }
 
 function Disable-Tool($Tool) {
-    Disable-ScheduledTask -TaskName $Tool.task | Out-Null
+    $task = Get-ToolTask $Tool
+    if (-not $task) { throw "No se encuentra la tarea programada $($Tool.task)." }
+    $task.Enabled = $false
     Stop-ToolProcess $Tool
     $hook = Join-Path $Tool.Dir 'disable.ps1'
     if (Test-Path $hook) { & $hook }
@@ -185,11 +308,11 @@ function Disable-Tool($Tool) {
 
 # Quita la tarea y borra su configuracion y log
 function Uninstall-Tool($Tool) {
-    if (Get-ScheduledTask -TaskName $Tool.task -ErrorAction SilentlyContinue) {
+    if (Get-ToolTask $Tool) {
         Disable-Tool $Tool
         $hook = Join-Path $Tool.Dir 'uninstall.ps1'
         if (Test-Path $hook) { & $hook }
-        Unregister-ScheduledTask -TaskName $Tool.task -Confirm:$false
+        $script:taskFolder.DeleteTask($Tool.task, 0)
     }
     $data = Join-Path $Root "data\$($Tool.id)"
     if (Test-Path $data) { Remove-Item $data -Recurse -Force }

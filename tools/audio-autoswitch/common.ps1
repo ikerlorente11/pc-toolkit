@@ -1,7 +1,7 @@
 ﻿# common.ps1 - Funciones compartidas por settings.ps1, home.ps1 y hotkey.ps1 (se cargan con ".").
 # Se declaran "script:" para que sigan disponibles en las acciones de los botones del gestor.
 
-if (-not ('PcToolkit.Audio.Endpoints' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'AudioEndpoints.cs') }
+Import-ToolkitType 'PcToolkit.Audio.Endpoints' -Path (Join-Path $PSScriptRoot 'AudioEndpoints.cs')   # compilado una sola vez (Toolkit.psm1)
 $script:AudioDataDir = Get-ToolDataDir 'audio-autoswitch'
 
 function script:Get-AudioConfig {

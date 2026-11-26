@@ -29,19 +29,25 @@ function script:Test-LocalSendRunning {
     [bool](Get-Process localsend_app -ErrorAction SilentlyContinue | Where-Object SessionId -eq $session)
 }
 
-# Nombre con el que los demás dispositivos ven este PC (lo elige LocalSend; se cambia en su ventana)
+# Nombre con el que los demás dispositivos ven este PC (lo elige LocalSend; se cambia en su ventana). Se guarda y
+# solo se vuelve a leer si cambian sus archivos: la portada del gestor lo pregunta cada dos segundos.
 function script:Get-LocalSendAlias {
     $files = @((Join-Path $env:APPDATA 'LocalSend\settings.json'),
                (Join-Path $env:APPDATA 'org.localsend\localsend_app\shared_preferences.json'))
     $exe = Get-LocalSendExe
     if ($exe) { $files = @((Join-Path (Split-Path $exe) 'settings.json')) + $files }   # versión portable
+    $stamp = ($files | ForEach-Object { "$_=$([IO.File]::GetLastWriteTimeUtc($_).Ticks)" }) -join '|'
+    if ($script:LocalSendAliasCache -and $script:LocalSendAliasCache.Stamp -eq $stamp) { return $script:LocalSendAliasCache.Alias }
+    $alias = $null
     foreach ($f in $files) {
         if (-not (Test-Path $f)) { continue }
         try {
-            $alias = (Get-Content $f -Raw -Encoding UTF8 | ConvertFrom-Json).'flutter.ls_alias'
-            if ($alias) { return [string]$alias }
+            $a = (Get-Content $f -Raw -Encoding UTF8 | ConvertFrom-Json).'flutter.ls_alias'
+            if ($a) { $alias = [string]$a; break }
         } catch {}
     }
+    $script:LocalSendAliasCache = @{ Stamp = $stamp; Alias = $alias }
+    $alias
 }
 
 # Abre LocalSend. Con archivos, va directo a enviarlos (si ya está abierto, se los pasa a esa ventana).

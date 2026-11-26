@@ -2,7 +2,8 @@
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-$script:HomeSignatures['localsend'] = { "$([bool](Get-LocalSendExe))|$(Test-LocalSendRunning)|$(Get-LocalSendAlias)" }
+# (Test-ProcessRunning, de Toolkit.psm1, comparte la lista de procesos con las demás firmas)
+$script:HomeSignatures['localsend'] = { "$([bool](Get-LocalSendExe))|$(Test-ProcessRunning localsend_app -ThisSession)|$(Get-LocalSendAlias)" }
 
 $installed = [bool](Get-LocalSendExe)
 $running = Test-LocalSendRunning

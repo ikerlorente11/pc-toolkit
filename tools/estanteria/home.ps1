@@ -2,7 +2,8 @@
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-$script:HomeSignatures['estanteria'] = { "$(Get-EstanteriaVersion)|$(Test-EstanteriaRunning)" }
+# (Test-ProcessRunning, de Toolkit.psm1, comparte la lista de procesos con las demás firmas)
+$script:HomeSignatures['estanteria'] = { "$(Get-EstanteriaVersion)|$(Test-ProcessRunning la-estanteria)" }
 
 $version = Get-EstanteriaVersion
 $row = New-Ui @'

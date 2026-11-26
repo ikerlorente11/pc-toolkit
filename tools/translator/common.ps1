@@ -4,7 +4,7 @@
 
 if (-not ('PcToolkit.Translator.Http' -as [type])) {
     Add-Type -AssemblyName System.Net.Http
-    Add-Type -Path (Join-Path $PSScriptRoot 'Translator.cs') -ReferencedAssemblies ([System.Net.Http.HttpClient].Assembly.Location)
+    Import-ToolkitType 'PcToolkit.Translator.Http' -Path (Join-Path $PSScriptRoot 'Translator.cs') -ReferencedAssemblies ([System.Net.Http.HttpClient].Assembly.Location)
 }
 $script:TranslatorDir  = $PSScriptRoot
 $script:TranslatorData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\translator'
@@ -58,7 +58,25 @@ function script:Set-TranslatorSetting([string]$Name, $Value) {
 # Sin tildes y en minúsculas, para buscar "frances" o "aleman"
 function script:ConvertTo-TranslatorSearchText([string]$Text) {
     $d = $Text.ToLowerInvariant().Normalize([Text.NormalizationForm]::FormD)
-    -join ($d.ToCharArray() | Where-Object { [Globalization.CharUnicodeInfo]::GetUnicodeCategory($_) -ne 'NonSpacingMark' })
+    $sb = New-Object Text.StringBuilder $d.Length
+    foreach ($c in $d.ToCharArray()) {   # un bucle, no una tubería: se llama en cada tecla del buscador
+        if ([Globalization.CharUnicodeInfo]::GetUnicodeCategory($c) -ne 'NonSpacingMark') { [void]$sb.Append($c) }
+    }
+    $sb.ToString()
+}
+
+# Filas de la lista de idiomas de un selector. Se crean al desplegarlo por primera vez: son casi 40 por
+# selector y la ventana del traductor rehace sus dos selectores cada vez que se abre.
+function script:Add-TranslatorLanguageRows($List) {
+    $a = $List.Tag
+    $List.Tag = $null
+    $choose = { param($x) $x.Menu.IsOpen = $false; & $x.OnPick $x.Code }
+    foreach ($code in $a.Codes) {
+        $name = Get-TranslatorLanguageName $code
+        $row = New-ChoiceRow $name '' ($code -eq $a.Current) $choose @{ Menu = $a.Menu; OnPick = $a.OnPick; Code = $code } -Compact
+        $row.Uid = ConvertTo-TranslatorSearchText $name
+        [void]$List.Children.Add($row)
+    }
 }
 
 # Botón con el idioma elegido; al pulsarlo se despliega la lista con un buscador.
@@ -97,13 +115,7 @@ function script:New-TranslatorLanguagePicker([string]$Current, [scriptblock]$OnP
 
     $codes = @($script:TranslatorLanguages.Keys)
     if ($Auto) { $codes = @('auto') + $codes }
-    $choose = { param($a) $a.Menu.IsOpen = $false; & $a.OnPick $a.Code }
-    foreach ($code in $codes) {
-        $name = Get-TranslatorLanguageName $code
-        $row = New-ChoiceRow $name '' ($code -eq $Current) $choose @{ Menu = $menu; OnPick = $OnPick; Code = $code } -Compact
-        $row.Uid = ConvertTo-TranslatorSearchText $name
-        [void]$list.Children.Add($row)
-    }
+    $list.Tag = @{ Codes = $codes; Current = $Current; Menu = $menu; OnPick = $OnPick }   # ver Add-TranslatorLanguageRows
 
     # Buscador: filtra al escribir; Intro elige el primero que quede
     $search.Tag = 'Buscar idioma'
@@ -125,6 +137,8 @@ function script:New-TranslatorLanguagePicker([string]$Current, [scriptblock]$OnP
         param($s, $e)
         $e.Handled = $true   # que no abra la página de la herramienta si está en una tarjeta
         $m = $s.Tag
+        $list = $m.Child.Child.Children[1].Content
+        if ($list.Tag) { Add-TranslatorLanguageRows $list }
         $m.Child.Width = [Math]::Max($s.ActualWidth, 240)
         $m.IsOpen = -not $m.IsOpen
         if ($m.IsOpen) {

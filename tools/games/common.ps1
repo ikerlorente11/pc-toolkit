@@ -2,8 +2,15 @@
 # install.ps1, disable.ps1, settings.ps1 y home.ps1. Funciones "script:" para que sigan vivas en los botones del gestor.
 
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-if (-not ('PcToolkit.Hdr.Native' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'HdrNative.cs') }
-if (-not ('PcToolkit.GameWindows.Native' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'WindowNative.cs') }
+if (-not ('PcToolkit.Hdr.Native' -as [type])) {
+    # Con Toolkit.psm1 cargado (gestor, instalar, desactivar) se compila una sola vez; en el vigilante, como siempre
+    if (Get-Command Import-ToolkitType -ErrorAction Ignore) { Import-ToolkitType 'PcToolkit.Hdr.Native' -Path (Join-Path $PSScriptRoot 'HdrNative.cs') }
+    else { Add-Type -Path (Join-Path $PSScriptRoot 'HdrNative.cs') }
+}
+if (-not ('PcToolkit.GameWindows.Native' -as [type])) {
+    if (Get-Command Import-ToolkitType -ErrorAction Ignore) { Import-ToolkitType 'PcToolkit.GameWindows.Native' -Path (Join-Path $PSScriptRoot 'WindowNative.cs') }
+    else { Add-Type -Path (Join-Path $PSScriptRoot 'WindowNative.cs') }
+}
 $script:GamesDir  = $PSScriptRoot
 $script:GamesData = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\games'
 # Pantallas a las que el vigilante quitó el HDR y que hay que devolver al cerrar el juego

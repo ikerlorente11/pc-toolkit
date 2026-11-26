@@ -3,7 +3,8 @@
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $script:HomeSignatures['everything'] = {
-    "$(Test-EverythingClient)|$(Get-ToolHotkey ($tools | Where-Object id -eq 'everything'))"
+    # (Test-ProcessRunning, de Toolkit.psm1, comparte la lista de procesos con las demás firmas)
+    "$(Test-ProcessRunning Everything -ThisSession)|$(Get-ToolHotkey ($tools | Where-Object id -eq 'everything'))"
 }
 
 $keys = Get-ToolHotkey ($tools | Where-Object id -eq 'everything')

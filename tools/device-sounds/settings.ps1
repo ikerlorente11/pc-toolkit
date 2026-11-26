@@ -3,13 +3,17 @@
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-if (-not ('PcToolkit.DeviceSounds.SystemSound' -as [type])) {
-    Add-Type -Namespace PcToolkit.DeviceSounds -Name SystemSound -MemberDefinition @'
-[DllImport("winmm.dll", CharSet = CharSet.Unicode)] static extern bool PlaySound(string sound, IntPtr module, uint flags);
-// Reproduce un sonido de Windows por su nombre de evento, tal y como esté configurado
-public static void Play(string alias) { PlaySound(alias, IntPtr.Zero, 0x10000 | 0x2 | 0x1); }   // SND_ALIAS | SND_NODEFAULT | SND_ASYNC
-'@
+Import-ToolkitType 'PcToolkit.DeviceSounds.SystemSound' -Source @'
+using System;
+using System.Runtime.InteropServices;
+namespace PcToolkit.DeviceSounds {
+    public static class SystemSound {
+        [DllImport("winmm.dll", CharSet = CharSet.Unicode)] static extern bool PlaySound(string sound, IntPtr module, uint flags);
+        // Reproduce un sonido de Windows por su nombre de evento, tal y como esté configurado
+        public static void Play(string alias) { PlaySound(alias, IntPtr.Zero, 0x10000 | 0x2 | 0x1); }   // SND_ALIAS | SND_NODEFAULT | SND_ASYNC
+    }
 }
+'@
 
 function script:Set-DeviceSound([string]$Name, [string]$Id) {
     $cfg = Get-DeviceSoundsConfig
@@ -48,13 +52,20 @@ function script:New-DeviceSoundSelector([string]$Name, [string]$Current) {
     $root.FindName('Value').Text = Get-DeviceSoundLabel $Current
     $pick = $root.FindName('Pick')
     [Windows.Automation.AutomationProperties]::SetName($pick, $(if ($Name -eq 'Connect') { 'Sonido al conectar' } else { 'Sonido al desconectar' }))
-    $choose = { param($arg) $parts = $arg -split '\|'; Set-DeviceSound $parts[0] $parts[1] }
-    foreach ($id in @('none', 'windows') + @($script:DeviceSoundLibrary.Keys)) {
-        [void]$root.FindName('List').Children.Add((New-ChoiceRow (Get-DeviceSoundLabel $id) '' ($id -eq $Current) $choose "$Name|$id" -Compact))
-    }
+    # La biblioteca se pone en la lista al desplegarla por primera vez (así la página se abre antes)
+    $root.FindName('List').Tag = @{ Name = $Name; Current = $Current }
     $pick.Tag = $root.FindName('Menu')
     $pick.Add_Click({
         param($s, $e)
+        $list = $s.Tag.Child.Child.Content
+        if ($list.Tag) {
+            $a = $list.Tag
+            $list.Tag = $null
+            $choose = { param($arg) $parts = $arg -split '\|'; Set-DeviceSound $parts[0] $parts[1] }
+            foreach ($id in @('none', 'windows') + @($script:DeviceSoundLibrary.Keys)) {
+                [void]$list.Children.Add((New-ChoiceRow (Get-DeviceSoundLabel $id) '' ($id -eq $a.Current) $choose "$($a.Name)|$id" -Compact))
+            }
+        }
         $s.Tag.Child.Width = $s.ActualWidth
         $s.Tag.IsOpen = -not $s.Tag.IsOpen
         $e.Handled = $true

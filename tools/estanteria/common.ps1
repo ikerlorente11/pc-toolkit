@@ -16,24 +16,26 @@ function script:Write-EstanteriaLog([string]$Text) {
     Add-Content (Join-Path $script:EstanteriaData 'Estanteria.log') "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Text"
 }
 
-# la-estanteria.exe instalado (o $null): lo que diga el registro de desinstalación, o la carpeta de siempre
+# la-estanteria.exe instalado (o $null): lo que diga el registro de desinstalación, o la carpeta de siempre.
+# Con .NET y no con Get-ItemProperty/Test-Path: la portada del gestor lo pregunta cada dos segundos.
 function script:Get-EstanteriaExe {
-    $e = Get-ItemProperty $script:EstanteriaUninstallKey -ErrorAction SilentlyContinue
-    if ($e.InstallLocation) {
-        $exe = Join-Path $e.InstallLocation.Trim('"') 'la-estanteria.exe'   # NSIS la guarda entre comillas
-        if (Test-Path $exe) { return $exe }
+    $key = $script:EstanteriaUninstallKey.Replace('HKCU:\', 'HKEY_CURRENT_USER\')
+    $location = [string][Microsoft.Win32.Registry]::GetValue($key, 'InstallLocation', $null)
+    if ($location) {
+        $exe = Join-Path $location.Trim('"') 'la-estanteria.exe'   # NSIS la guarda entre comillas
+        if ([IO.File]::Exists($exe)) { return $exe }
     }
     $exe = Join-Path $env:LOCALAPPDATA 'La Estantería\la-estanteria.exe'
-    if (Test-Path $exe) { return $exe }
+    if ([IO.File]::Exists($exe)) { return $exe }
 }
 
 function script:Get-EstanteriaVersion {
     $exe = Get-EstanteriaExe
-    if ($exe) { ((Get-Item $exe).VersionInfo.ProductVersion -split '\.')[0..2] -join '.' }   # 0.1.0.0 -> 0.1.0, como la etiqueta
+    if ($exe) { ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion -split '\.')[0..2] -join '.' }   # 0.1.0.0 -> 0.1.0, como la etiqueta
 }
 
 function script:Test-EstanteriaRunning {
-    [bool](Get-Process la-estanteria -ErrorAction SilentlyContinue)
+    [Diagnostics.Process]::GetProcessesByName('la-estanteria').Length -gt 0
 }
 
 # La última release de la app (etiqueta estanteria-v*): versión y dirección de su instalador

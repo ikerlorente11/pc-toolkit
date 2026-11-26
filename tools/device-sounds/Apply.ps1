@@ -2,8 +2,8 @@
 # Lo lanza la tarea programada "PcToolkitDeviceSounds" al iniciar sesión (por si Windows los ha
 # cambiado, p. ej. al cambiar de tema) y al activar la herramienta.
 
-. (Join-Path $PSScriptRoot 'common.ps1')
 Import-Module (Join-Path $PSScriptRoot '..\..\core\Toolkit.psm1')
+. (Join-Path $PSScriptRoot 'common.ps1')
 
 # Si la herramienta está desactivada (p. ej. se desactivó mientras esto arrancaba), los de Windows
 $tool = Get-Tools | Where-Object id -eq 'device-sounds'

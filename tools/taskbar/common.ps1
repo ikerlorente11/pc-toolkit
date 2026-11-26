@@ -6,7 +6,11 @@
 #   ocultar, alineación, pantallas, tamaño de iconos y búsqueda -> al momento (registro + aviso a Explorer)
 #   posición -> hay que reiniciar Explorer; en Windows 11 solo abajo/arriba (a los lados queda vacía)
 
-if (-not ('PcToolkit.Taskbar.Native' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'TaskbarNative.cs') }
+if (-not ('PcToolkit.Taskbar.Native' -as [type])) {
+    # Con Toolkit.psm1 cargado (gestor, instalar, desactivar) se compila una sola vez; en el vigilante, como siempre
+    if (Get-Command Import-ToolkitType -ErrorAction Ignore) { Import-ToolkitType 'PcToolkit.Taskbar.Native' -Path (Join-Path $PSScriptRoot 'TaskbarNative.cs') }
+    else { Add-Type -Path (Join-Path $PSScriptRoot 'TaskbarNative.cs') }
+}
 $script:TaskbarDataDir   = Join-Path $env:LOCALAPPDATA 'PcToolkit\data\taskbar'
 $script:ExplorerAdvanced = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
 $script:ExplorerSearch   = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search'
