@@ -4,7 +4,7 @@
   "icon": "E8D6",
   "summary": "Escucha tu música",
   "category": "Apps",
-  "description": "Reproductor de la música de tus carpetas de este PC (mp3, flac, opus, ogg, m4a, wav…), por artistas, discos, canciones y carpetas, con letras sincronizadas, listas, me gusta y lo que más escuchas; las teclas multimedia del teclado lo controlan. Instala la app de escritorio El Reproductor (se descarga de las releases de PC Toolkit) y la abre con un atajo de teclado; las canciones del Explorador se pueden abrir con ella.",
+  "description": "Reproductor de la música de tus carpetas de este PC (mp3, flac, opus, ogg, m4a, wav…), por artistas, discos, canciones y carpetas, con letras sincronizadas, listas, me gusta y lo que más escuchas; la información de cada canción (todos sus artistas, su disco…); un mini reproductor siempre encima, donde lo pongas; las teclas multimedia del teclado lo controlan. Instala la app de escritorio El Reproductor (se descarga de las releases de PC Toolkit) y la abre con un atajo de teclado; las canciones del Explorador se pueden abrir con ella.",
   "installNote": "Descarga e instala la app El Reproductor para el usuario actual, sin permisos de administrador.",
   "task": "PcToolkitReproductor",
   "log": "Reproductor.log",
