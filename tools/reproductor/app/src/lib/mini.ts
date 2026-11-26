@@ -7,7 +7,7 @@ import { getCurrentWindow, LogicalSize, PhysicalPosition, PhysicalSize, currentM
 import type { MiniWindow } from 'reproductor-player'
 
 /** the card's size and the bar's (logical pixels) */
-const CARD = { w: 300, h: 480 }
+const CARD = { w: 300, h: 512 }
 const BAR = { w: 380, h: 110 }
 const MARGIN = 16
 const KEPT = 'reproductor.mini.at'

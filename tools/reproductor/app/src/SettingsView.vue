@@ -84,6 +84,10 @@
     <section class="rd-box">
       <h2>El Reproductor</h2>
       <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+      <h3 class="rd-news-h">Novedades de la 0.3.1</h3>
+      <ul class="rd-news">
+        <li>Mini reproductor: la letra (en el sitio de la portada) y el volumen, también en la barra pequeña, donde la rueda del ratón lo sube y lo baja.</li>
+      </ul>
       <h3 class="rd-news-h">Novedades de la 0.3.0</h3>
       <ul class="rd-news">
         <li>Mini reproductor (el botón junto al volumen): la app se hace una tarjeta siempre encima, donde la quieras, con la portada, los controles, la cola, tus listas y tus artistas. Con la flecha, aún más pequeña: una barra como el widget del móvil. Recuerda dónde y cómo la dejaste.</li>
