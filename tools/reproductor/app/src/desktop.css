@@ -1,16 +1,22 @@
 /* The desktop shell: the player's styles plus a light/dark theme of its own (there is no OpenCloud theme here).
-   The theme follows the system. The icons come with the app (public/icons), not from OpenCloud. */
+   The theme follows the system unless one is chosen in Ajustes (`data-theme` on <html>, lib/theme.ts). The icons come
+   with the app (public/icons), not from OpenCloud. */
 :root {
   --oc-role-surface: #ffffff; --oc-role-surface-container: #f2f2f5; --oc-role-surface-container-high: #e6e6ea;
   --oc-role-outline-variant: #e0e0e6; --oc-role-on-surface-variant: #6f6f78; --oc-role-on-surface: #1b1b1f; --oc-role-background: #fafafc;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --oc-role-surface: #1c1c20; --oc-role-surface-container: #26262b; --oc-role-surface-container-high: #313137;
     --oc-role-outline-variant: #3a3a41; --oc-role-on-surface-variant: #a3a3ad; --oc-role-on-surface: #ededf2; --oc-role-background: #141417;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --oc-role-surface: #1c1c20; --oc-role-surface-container: #26262b; --oc-role-surface-container-high: #313137;
+    --oc-role-outline-variant: #3a3a41; --oc-role-on-surface-variant: #a3a3ad; --oc-role-on-surface: #ededf2; --oc-role-background: #141417;
+    color-scheme: dark;
 }
 html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--oc-role-background); color: var(--oc-role-on-surface); }
 #app { height: 100%; }
@@ -31,3 +37,5 @@ html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "
 .rd-form { display: grid; gap: 10px; max-width: 520px; }
 .rd-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
 .rd-form .rp-input { padding: 8px 12px; font-size: 14px; }
+.rd-theme .rp-chip { font: inherit; font-size: 13.5px; padding: 6px 16px; }
+.rd-theme .rp-chip:not(.on) { background: transparent; color: inherit; }

@@ -73,6 +73,15 @@
     </section>
 
     <section class="rd-box">
+      <h2>Apariencia</h2>
+      <div class="rp-chips rd-theme" role="radiogroup" aria-label="Tema">
+        <button v-for="t in themes" :key="t.value" :class="['rp-chip', { on: theme === t.value }]" role="radio" :aria-checked="theme === t.value"
+                @click="theme = t.value">{{ t.label }}</button>
+      </div>
+      <p class="rp-muted rp-small">{{ theme === 'system' ? 'Claro u oscuro, como tengas Windows.' : theme === 'light' ? 'Siempre claro.' : 'Siempre oscuro.' }}</p>
+    </section>
+
+    <section class="rd-box">
       <h2>El Reproductor</h2>
       <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
       <h3 class="rd-news-h">Novedades de la 0.2.1</h3>
@@ -101,6 +110,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import { LibrariesSettings, type DeviceLibrary, type LocalEngine, type RemoteLibraries } from 'reproductor-player'
 import type { Connection } from './lib/server'
+import { theme, type Theme } from './lib/theme'
+
+const themes: { value: Theme; label: string }[] = [{ value: 'system', label: 'Sistema' }, { value: 'light', label: 'Claro' }, { value: 'dark', label: 'Oscuro' }]
 
 const props = defineProps<{
   device: DeviceLibrary

@@ -2,7 +2,8 @@
   <ReproductorShell :key="mode" :api="(server || local)?.api" :sl="(server || local)?.sl" :files="files" :device="device"
                     :engine="server ? null : engine" :offline="offline" :view="view" :navigate="navigate" music-root="Música"
                     :cloud-name="server ? server.connection.name || 'tu nube' : 'Windows'" :me="server ? me : undefined"
-                    :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="server || local ? engine.state.status?.music_dir : undefined">
+                    :where="server ? 'tu nube' : local ? 'este equipo' : undefined" :device-also="server || local ? engine.state.status?.music_dir : undefined"
+                    :open-fetch="openFetch">
     <template #settings>
       <SettingsView :device="device" :engine="engine" :libraries="remotes" :version="version" :server="server?.connection || null" :server-error="serverError" :saved="savedServer"
                     :connect="connectServer" :disconnect="disconnectServer" />
@@ -46,6 +47,8 @@ const remotes = new RemoteLibraries({
   set: (key, value) => invoke('secret_set', { account: `player:${key}`, secret: value }),
   delete: (key) => invoke('secret_delete', { account: `player:${key}` })
 }, (input, init) => tauriFetch(input, init), 'El Reproductor (escritorio)')
+/** a fetch that reaches any site (the browser's would not): Deezer is asked a song's info with it */
+const openFetch = (url: string, init?: RequestInit) => tauriFetch(url, init)
 /** this PC's music, and the libraries' joined to it (each one more folder) */
 const device = new DeviceLibrary(withRemotes(desktopDevice(), remotes))
 /** soundlift and the El Reproductor service on this PC: the app downloads music by itself (no server does the work) */
