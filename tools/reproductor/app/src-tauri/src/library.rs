@@ -557,6 +557,10 @@ fn answer<R: Runtime>(request: &Request<Vec<u8>>, app: &AppHandle<R>) -> Respons
     if let Some(("w", rest)) = path.split_once('/') {
         return crate::cloud::answer(app, rest, request).unwrap_or_else(|| missing("sin servidor conectado".into()));
     }
+    // a song one does not have, straight from YouTube Music (proof of concept)
+    if let Some(("y", rest)) = path.split_once('/') {
+        return crate::yt::answer(app, rest, request);
+    }
     let found = match path.split_once('/') {
         Some(("f", id)) => path_of(app, id),
         Some(("c", id)) => cover_file(app, id),
@@ -573,7 +577,7 @@ fn answer<R: Runtime>(request: &Request<Vec<u8>>, app: &AppHandle<R>) -> Respons
 }
 
 /// `%C3%BA` → `ú`: the path of a URL as it was written.
-fn percent_decode(text: &str) -> String {
+pub(crate) fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

@@ -8,6 +8,7 @@ mod engine;
 mod library;
 mod updater;
 mod window;
+mod yt;
 
 use std::path::Path;
 
@@ -84,6 +85,7 @@ pub fn run() {
         .manage(cloud::Offline::default())
         .manage(updater::Updater::default())
         .manage(window::Media::default())
+        .manage(yt::Yt::default())
         .on_window_event(window::on_event)
         // the page asks the microphone only so the system names its outputs (Ajustes › Sonido › Salida): it is let go
         // at once and nothing is recorded; without it, the output cannot be chosen
@@ -105,7 +107,7 @@ pub fn run() {
             engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove,
             cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove, cloud::offline_have, cloud::offline_get, cloud::offline_remove,
             updater::update_check, updater::update_install,
-            window::set_background, window::media_state
+            window::set_background, window::media_state, yt::yt_prepare
         ])
         .build(tauri::generate_context!())
         .expect("error while running El Reproductor")

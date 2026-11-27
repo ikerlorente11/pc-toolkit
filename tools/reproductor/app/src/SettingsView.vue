@@ -103,6 +103,11 @@
     <template #about>
       <section class="rd-box">
         <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+        <h3 class="rd-news-h">Novedades de la 0.5.0</h3>
+        <ul class="rd-news">
+          <li>Escucha sin descargar: cualquier canción, disco, lista o artista del catálogo suena al momento desde YouTube Music, con ▶ y aleatorio en cada página, sin servidor.</li>
+          <li>«Seguir» y «Guardar» ponen artistas, discos y listas de Deezer en tu biblioteca sin descargar nada (grupo «Discos» nuevo); «Descargar» (la nube) baja la música del artista y lo nuevo que saque. Con tu servidor, tu biblioteca es la misma en todos tus dispositivos.</li>
+        </ul>
         <h3 class="rd-news-h">Novedades de la 0.4.0</h3>
         <ul class="rd-news">
           <li>Sonido: todas las canciones igual de fuertes y sin silencios al principio y al final; ecualizador de 10 bandas con preajustes; volumen extra; elegir por dónde suena (altavoces, cascos, monitor…) y un ecualizador para cada salida (Ajustes › Sonido y Ecualizador).</li>

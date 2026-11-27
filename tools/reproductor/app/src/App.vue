@@ -108,6 +108,11 @@ const failed = (err: unknown) => Object.assign(new Error(String(err)), { status:
 /** The songs: this PC's by their id in the index; El Reproductor's by their path, in the server's cloud (WebDAV,
  *  through Rust) or in the engine's music folder. */
 const files: Files = {
+  stream: true,
+  prepare(songs) {
+    const wanted = songs.filter((s) => s.stream).map((s) => ({ artist: s.stream!.artist, title: s.stream!.title, d: s.stream!.duration || 0, isrc: s.stream!.isrc || '' }))
+    if (wanted.length) invoke('yt_prepare', { songs: wanted }).catch(() => {})
+  },
   async list(dir) {
     try { return await invoke(server.value ? 'cloud_list' : 'music_list', { dir }) } catch (err) { throw failed(err) }
   },
@@ -116,6 +121,12 @@ const files: Files = {
   },
   async play(song) {
     if (song.device) return { url: device.backend.fileUrl(song.device) }
+    // a song one does not have: Rust finds it on YouTube Music and relays its audio (src-tauri/src/yt.rs)
+    if (song.stream) {
+      const q = new URLSearchParams({ artist: song.stream.artist, title: song.stream.title, d: String(Math.round(song.stream.duration || 0)),
+                                      ...(song.stream.isrc ? { isrc: song.stream.isrc } : {}) })
+      return { url: mediaUrl(`y/q?${q}`) }
+    }
     return { url: mediaUrl((server.value ? 'w' : 'm') + song.path.split('/').map(encodeURIComponent).join('/')) }
   }
 }

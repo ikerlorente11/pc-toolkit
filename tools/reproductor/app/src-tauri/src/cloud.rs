@@ -19,7 +19,7 @@ use tauri::http::{Request, Response};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 /// A ranged answer is at most this long (the audio element asks again for the rest)…
-const RANGE_PIECE: u64 = 4 << 20;
+pub(crate) const RANGE_PIECE: u64 = 4 << 20;
 /// …and the first one shorter, so a song starts at once (it is asked for while the listener waits).
 const FIRST_PIECE: u64 = 256 << 10;
 
@@ -257,7 +257,7 @@ pub fn answer<R: Runtime>(app: &AppHandle<R>, path: &str, request: &Request<Vec<
 }
 
 /// The range to ask the cloud for: what the element asked, cut to RANGE_PIECE bytes.
-fn limit_range(asked: &str) -> String {
+pub(crate) fn limit_range(asked: &str) -> String {
     let Some(spec) = asked.trim().strip_prefix("bytes=") else { return format!("bytes=0-{}", RANGE_PIECE - 1) };
     let first = spec.split(',').next().unwrap_or("0-");
     let Some((from, to)) = first.split_once('-') else { return format!("bytes=0-{}", RANGE_PIECE - 1) };

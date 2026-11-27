@@ -1,6 +1,6 @@
 {
   "name": "reproductor-desktop",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "El Reproductor para Windows: tu música, la de este equipo y la de tu nube (app de escritorio de PC Toolkit, Tauri 2)",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -17,7 +17,7 @@
     "@tauri-apps/plugin-http": "^2.9.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-store": "^2.2.0",
-    "reproductor-player": "github:ikerlorente11/reproductor#63e3e7eabd184481aecb812fef6e3e01a796a4f0&path:player",
+    "reproductor-player": "github:ikerlorente11/reproductor#85f92d1ea8cef36532b2e184fc9578b8e836106e&path:player",
     "vue": "^3.5.13"
   },
   "devDependencies": {
