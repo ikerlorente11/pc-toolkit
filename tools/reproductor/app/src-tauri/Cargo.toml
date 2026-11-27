@@ -1,6 +1,6 @@
 [package]
 name = "el-reproductor"
-version = "0.3.1"
+version = "0.4.0"
 description = "El Reproductor: tu música, la de este equipo y la de tu nube"
 authors = ["Iker Lorente"]
 license = "PolyForm-Noncommercial-1.0.0"
@@ -15,7 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
@@ -37,6 +37,10 @@ trash = "5"
 # the cloud's WebDAV (cloud.rs): its PROPFIND answers, and the app password as basic auth
 quick-xml = "0.37"
 base64 = "0.22"
+
+# the window's buttons in the taskbar's preview (window.rs): the same version Tauri uses, with what that needs
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_HiDpi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 codegen-units = 1

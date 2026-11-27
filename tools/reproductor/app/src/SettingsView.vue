@@ -1,127 +1,158 @@
 <template>
-  <section class="rp-page rd-settings">
-    <header class="rp-page-head"><h1 class="rp-h1">Ajustes</h1></header>
-
-    <section class="rd-box">
-      <h2>Música de este equipo</h2>
-      <p class="rp-muted rp-small">El Reproductor lee las canciones de estas carpetas (y de sus subcarpetas). Las que cambien se vuelven a leer solas al abrir la app.</p>
-      <ul v-if="lib.roots.length" class="rd-roots">
-        <li v-for="r in lib.roots" :key="r">
-          <i class="rp-i rp-i-folder" aria-hidden="true"></i>
-          <span class="rp-ellipsis" :title="r">{{ r }}</span>
-          <span class="rp-muted rp-small">{{ countIn(r) }} canciones</span>
-          <button class="rp-mini" title="Dejar de leer esta carpeta (no se borra nada)" @click="remove(r)"><i class="rp-i rp-i-close" aria-hidden="true"></i></button>
-        </li>
-      </ul>
-      <p v-else class="rp-muted">Ninguna carpeta: añade la tuya.</p>
-      <div class="rd-actions">
-        <button class="rp-btn rp-primary" @click="add"><i class="rp-i rp-i-folder-add" aria-hidden="true"></i> Añadir carpeta</button>
-        <button class="rp-btn" :disabled="lib.scanning" @click="device.backend.scan()">
-          <span v-if="lib.scanning" class="rp-spin"></span><i v-else class="rp-i rp-i-refresh" aria-hidden="true"></i> Volver a leer
-        </button>
-        <span class="rp-muted rp-small">
-          <template v-if="lib.scanning && lib.progress.total">Leyendo {{ lib.progress.done }} de {{ lib.progress.total }}…</template>
-          <template v-else>{{ lib.tracks.length }} canciones · {{ device.albums.length }} discos · {{ device.artists.length }} artistas</template>
-        </span>
-      </div>
-      <p v-if="lib.error" class="rp-banner rp-banner-error">{{ lib.error }}</p>
-    </section>
-
-    <section class="rd-box"><LibrariesSettings :libraries="libraries" /></section>
-
-    <section class="rd-box">
-      <h2>Descargas</h2>
-      <p class="rp-muted rp-small">Sin servidor, El Reproductor busca y baja la música a este equipo con su propio motor de descargas: todo ocurre aquí.
-        <template v-if="server">Ahora mismo, conectado a tu servidor, lo que bajas va a tu nube.</template></p>
-      <template v-if="es.status?.installed">
-        <p class="rp-small">
-          Motor {{ es.status.installed.replace(/^motor-v/, '') }}
-          <span class="rp-muted"> · yt-dlp {{ es.status.ytdlp || es.status.info?.ytdlp || '—' }}<template v-if="es.status.running"> · en marcha</template></span>
-        </p>
-        <p class="rp-small">Se guardan en <a href="#" :title="es.status.music_dir" @click.prevent="engine.backend.openMusicDir()">{{ es.status.music_dir }}</a></p>
+  <SettingsMenu :sections="sections">
+    <template #music>
+      <section class="rd-box">
+        <h2>Carpetas de este equipo</h2>
+        <p class="rp-muted rp-small">El Reproductor lee las canciones de estas carpetas (y de sus subcarpetas). Las que cambien se vuelven a leer solas al abrir la app.</p>
+        <ul v-if="lib.roots.length" class="rd-roots">
+          <li v-for="r in lib.roots" :key="r">
+            <i class="rp-i rp-i-folder" aria-hidden="true"></i>
+            <span class="rp-ellipsis" :title="r">{{ r }}</span>
+            <span class="rp-muted rp-small">{{ countIn(r) }} canciones</span>
+            <button class="rp-mini" title="Dejar de leer esta carpeta (no se borra nada)" @click="remove(r)"><i class="rp-i rp-i-close" aria-hidden="true"></i></button>
+          </li>
+        </ul>
+        <p v-else class="rp-muted">Ninguna carpeta: añade la tuya.</p>
         <div class="rd-actions">
-          <button class="rp-btn" @click="chooseDir(false)"><i class="rp-i rp-i-folder-open" aria-hidden="true"></i> Cambiar carpeta</button>
-          <button class="rp-btn" :disabled="checking" title="Buscar una versión más nueva de yt-dlp (YouTube cambia a menudo)" @click="updateYtdlp">
-            <span v-if="checking" class="rp-spin"></span><i v-else class="rp-i rp-i-refresh" aria-hidden="true"></i> Actualizar yt-dlp</button>
-          <button v-if="engine.updatable" class="rp-btn rp-primary" :disabled="es.installing" @click="engine.install()">
-            <span v-if="es.installing" class="rp-spin"></span> Instalar el motor {{ es.latest!.tag.replace(/^motor-v/, '') }}</button>
+          <button class="rp-btn rp-primary" @click="add"><i class="rp-i rp-i-folder-add" aria-hidden="true"></i> Añadir carpeta</button>
+          <button class="rp-btn" :disabled="lib.scanning" @click="device.backend.scan()">
+            <span v-if="lib.scanning" class="rp-spin"></span><i v-else class="rp-i rp-i-refresh" aria-hidden="true"></i> Volver a leer
+          </button>
+          <span class="rp-muted rp-small">
+            <template v-if="lib.scanning && lib.progress.total">Leyendo {{ lib.progress.done }} de {{ lib.progress.total }}…</template>
+            <template v-else>{{ lib.tracks.length }} canciones · {{ device.albums.length }} discos · {{ device.artists.length }} artistas</template>
+          </span>
         </div>
-      </template>
-      <p v-else class="rp-muted rp-small">El motor aún no está instalado: se instala la primera vez que entras en «Descargar música».</p>
-      <p v-if="es.error" class="rp-banner rp-banner-error">{{ es.error }}</p>
-    </section>
-
-    <section class="rd-box">
-      <h2>Servidor</h2>
-      <template v-if="server">
-        <p>Conectado a <strong>{{ server.name || server.url }}</strong> como <strong>{{ server.username }}</strong>.</p>
-        <p class="rp-muted rp-small">Ves la música de tu nube, lo que bajas va a ella y este equipo es uno más de tus dispositivos.</p>
-        <div class="rd-actions"><button class="rp-btn" :disabled="busy" @click="leave">Desconectar</button></div>
-      </template>
-      <form v-else class="rd-form" @submit.prevent="join">
-        <p class="rp-muted rp-small">Conecta un servidor de El Reproductor (el de tu Archivador) para ver toda la música de tu nube, bajar a ella y
-          seguir escuchando en otros dispositivos.</p>
-        <label>Dirección<input v-model.trim="form.url" class="rp-input" placeholder="https://elreproductor.ejemplo.com" required /></label>
-        <label>Usuario<input v-model.trim="form.username" class="rp-input" autocomplete="username" required /></label>
-        <label>Contraseña<input v-model="form.password" class="rp-input" type="password" autocomplete="current-password" required /></label>
-        <label>Nombre <small class="rp-muted">(opcional)</small><input v-model.trim="form.name" class="rp-input" placeholder="El Archivador" /></label>
-        <p class="rp-muted rp-tiny">La de tu cuenta de la nube. La app la usa una sola vez para crearse su propia contraseña de aplicación, que es la
-          única que guarda (en el Administrador de credenciales de Windows). Puedes quitársela desde tu nube cuando quieras.</p>
-        <div class="rd-actions"><button class="rp-btn rp-primary" :disabled="busy"><span v-if="busy" class="rp-spin"></span> Conectar</button></div>
-      </form>
-      <p v-if="error || serverError" class="rp-banner rp-banner-error">{{ error || serverError }}</p>
-    </section>
-
-    <section class="rd-box">
-      <h2>Apariencia</h2>
-      <div class="rp-chips rd-theme" role="radiogroup" aria-label="Tema">
-        <button v-for="t in themes" :key="t.value" :class="['rp-chip', { on: theme === t.value }]" role="radio" :aria-checked="theme === t.value"
-                @click="theme = t.value">{{ t.label }}</button>
-      </div>
-      <p class="rp-muted rp-small">{{ theme === 'system' ? 'Claro u oscuro, como tengas Windows.' : theme === 'light' ? 'Siempre claro.' : 'Siempre oscuro.' }}</p>
-    </section>
-
-    <section class="rd-box">
-      <h2>El Reproductor</h2>
-      <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
-      <h3 class="rd-news-h">Novedades de la 0.3.1</h3>
-      <ul class="rd-news">
-        <li>Mini reproductor: la letra (en el sitio de la portada) y el volumen, también en la barra pequeña, donde la rueda del ratón lo sube y lo baja.</li>
-      </ul>
-      <h3 class="rd-news-h">Novedades de la 0.3.0</h3>
-      <ul class="rd-news">
-        <li>Mini reproductor (el botón junto al volumen): la app se hace una tarjeta siempre encima, donde la quieras, con la portada, los controles, la cola, tus listas y tus artistas. Con la flecha, aún más pequeña: una barra como el widget del móvil. Recuerda dónde y cómo la dejaste.</li>
-        <li>Inicio: lo que más escuchas (tus listas y artistas), en grande y a un clic.</li>
-        <li>Información de la canción (ⓘ en el reproductor): todos sus artistas, su disco, la fecha, el ritmo y la discográfica.</li>
-        <li>Tema claro, oscuro o el de Windows (Ajustes › Apariencia).</li>
-        <li>La cola, la letra y los dispositivos, dentro de la ventana; «Suena en otro dispositivo» solo cuando otro de tus dispositivos está sonando.</li>
-      </ul>
-      <h3 class="rd-news-h">Novedades de la 0.2.1</h3>
-      <ul class="rd-news">
-        <li>Se actualiza sola si no la instalaste con PC Toolkit: baja la versión nueva y la instala al cerrar (o al pulsar «Reiniciar ahora»).</li>
-        <li>Servidor propio se conecta con tu contraseña de siempre: la app se crea una contraseña de aplicación para este equipo y no guarda la tuya.</li>
-      </ul>
-      <h3 class="rd-news-h">Novedades de la 0.2.0</h3>
-      <ul class="rd-news">
-        <li>Bibliotecas: añade tu Navidrome (o cualquier servidor Subsonic) o tu Jellyfin y sus canciones se juntan con las de este equipo.</li>
-        <li>Conecta tu servidor de El Reproductor (Ajustes › Servidor) y verás toda la música de tu nube, que suena al momento sin bajarla entera. Lo que bajas va a tu nube.</li>
-        <li>Este equipo es uno más de tus dispositivos: pásale lo que suena en el móvil o en la web, o llévatelo de aquí.</li>
-        <li>Guarda discos y listas de tu nube en este equipo para escucharlos sin conexión; una lista «mantenida» guarda sola lo que le añadas.</li>
-      </ul>
-      <h3 class="rd-news-h">Novedades de la 0.1.0</h3>
-      <ul class="rd-news">
-        <li>La música de tus carpetas, por artistas, discos y carpetas, con sus portadas y sus letras (de un .lrc o de LRCLIB).</li>
-        <li>Con el motor de descargas: El Reproductor como en El Archivador. Busca artistas, discos y canciones aunque no los tengas, sigue a tus artistas, baja discos y canciones a este equipo y haz listas que se completan solas.</li>
-        <li>Las teclas multimedia del teclado, abrir canciones desde el Explorador y soltar canciones o carpetas en la ventana.</li>
-      </ul>
-    </section>
-  </section>
+        <p v-if="lib.error" class="rp-banner rp-banner-error">{{ lib.error }}</p>
+      </section>
+      <section class="rd-box"><LibrariesSettings :libraries="libraries" /></section>
+    </template>
+    <template #sound>
+      <section class="rd-box"><SoundSettings /></section>
+    </template>
+    <template #eq>
+      <section class="rd-box"><EqualizerPanel /></section>
+    </template>
+    <template #playback>
+      <section class="rd-box"><PlaybackSettings /></section>
+    </template>
+    <template #downloads>
+      <section class="rd-box">
+        <p class="rp-muted rp-small">Sin servidor, El Reproductor busca y baja la música a este equipo con su propio motor de descargas: todo ocurre aquí.
+          <template v-if="server">Ahora mismo, conectado a tu servidor, lo que bajas va a tu nube.</template></p>
+        <template v-if="es.status?.installed">
+          <p class="rp-small">
+            Motor {{ es.status.installed.replace(/^motor-v/, '') }}
+            <span class="rp-muted"> · yt-dlp {{ es.status.ytdlp || es.status.info?.ytdlp || '—' }}<template v-if="es.status.running"> · en marcha</template></span>
+          </p>
+          <p class="rp-small">Se guardan en <a href="#" :title="es.status.music_dir" @click.prevent="engine.backend.openMusicDir()">{{ es.status.music_dir }}</a></p>
+          <div class="rd-actions">
+            <button class="rp-btn" @click="chooseDir(false)"><i class="rp-i rp-i-folder-open" aria-hidden="true"></i> Cambiar carpeta</button>
+            <button class="rp-btn" :disabled="checking" title="Buscar una versión más nueva de yt-dlp (YouTube cambia a menudo)" @click="updateYtdlp">
+              <span v-if="checking" class="rp-spin"></span><i v-else class="rp-i rp-i-refresh" aria-hidden="true"></i> Actualizar yt-dlp</button>
+            <button v-if="engine.updatable" class="rp-btn rp-primary" :disabled="es.installing" @click="engine.install()">
+              <span v-if="es.installing" class="rp-spin"></span> Instalar el motor {{ es.latest!.tag.replace(/^motor-v/, '') }}</button>
+          </div>
+        </template>
+        <p v-else class="rp-muted rp-small">El motor aún no está instalado: se instala la primera vez que entras en «Descargar música».</p>
+        <p v-if="es.error" class="rp-banner rp-banner-error">{{ es.error }}</p>
+      </section>
+    </template>
+    <template #server>
+      <section class="rd-box">
+        <template v-if="server">
+          <p>Conectado a <strong>{{ server.name || server.url }}</strong> como <strong>{{ server.username }}</strong>.</p>
+          <p class="rp-muted rp-small">Ves la música de tu nube, lo que bajas va a ella y este equipo es uno más de tus dispositivos.</p>
+          <div class="rd-actions"><button class="rp-btn" :disabled="busy" @click="leave">Desconectar</button></div>
+        </template>
+        <form v-else class="rd-form" @submit.prevent="join">
+          <p class="rp-muted rp-small">Conecta un servidor de El Reproductor (el de tu Archivador) para ver toda la música de tu nube, bajar a ella y
+            seguir escuchando en otros dispositivos.</p>
+          <label>Dirección<input v-model.trim="form.url" class="rp-input" placeholder="https://elreproductor.ejemplo.com" required /></label>
+          <label>Usuario<input v-model.trim="form.username" class="rp-input" autocomplete="username" required /></label>
+          <label>Contraseña<input v-model="form.password" class="rp-input" type="password" autocomplete="current-password" required /></label>
+          <label>Nombre <small class="rp-muted">(opcional)</small><input v-model.trim="form.name" class="rp-input" placeholder="El Archivador" /></label>
+          <p class="rp-muted rp-tiny">La de tu cuenta de la nube. La app la usa una sola vez para crearse su propia contraseña de aplicación, que es la
+            única que guarda (en el Administrador de credenciales de Windows). Puedes quitársela desde tu nube cuando quieras.</p>
+          <div class="rd-actions"><button class="rp-btn rp-primary" :disabled="busy"><span v-if="busy" class="rp-spin"></span> Conectar</button></div>
+        </form>
+        <p v-if="error || serverError" class="rp-banner rp-banner-error">{{ error || serverError }}</p>
+      </section>
+    </template>
+    <template #window>
+      <section class="rd-box">
+        <label class="rp-toggle">
+          <span class="rp-toggle-text">
+            <strong>Seguir sonando al cerrar</strong>
+            <small class="rp-muted">Al cerrar la ventana, El Reproductor se queda en la bandeja del sistema (junto al reloj) y la música sigue.
+              Desde su icono la vuelves a abrir, la pausas, pasas de canción o sales del todo.</small>
+          </span>
+          <input v-model="background" class="rp-switch-input" type="checkbox" role="switch" />
+        </label>
+      </section>
+    </template>
+    <template #look>
+      <section class="rd-box">
+        <div class="rp-chips rd-theme" role="radiogroup" aria-label="Tema">
+          <button v-for="t in themes" :key="t.value" :class="['rp-chip', { on: theme === t.value }]" role="radio" :aria-checked="theme === t.value"
+                  @click="theme = t.value">{{ t.label }}</button>
+        </div>
+        <p class="rp-muted rp-small">{{ theme === 'system' ? 'Claro u oscuro, como tengas Windows.' : theme === 'light' ? 'Siempre claro.' : 'Siempre oscuro.' }}</p>
+      </section>
+    </template>
+    <template #about>
+      <section class="rd-box">
+        <p class="rp-muted rp-small">Versión {{ version || '—' }}.</p>
+        <h3 class="rd-news-h">Novedades de la 0.4.0</h3>
+        <ul class="rd-news">
+          <li>Sonido: todas las canciones igual de fuertes y sin silencios al principio y al final; ecualizador de 10 bandas con preajustes; volumen extra; elegir por dónde suena (altavoces, cascos, monitor…) y un ecualizador para cada salida (Ajustes › Sonido y Ecualizador).</li>
+          <li>Temporizador para dormir (también al acabar la canción, con un fundido) y velocidad, en el botón de la luna; las canciones largas siguen donde las dejaste.</li>
+          <li>Radio al acabar la cola: sigue con canciones parecidas que tienes. Calidad de Navidrome y Jellyfin (Ajustes › Reproducción).</li>
+          <li>Seguir sonando al cerrar: la app se queda en la bandeja del sistema. Botones ⏮ ⏯ ⏭ en la vista previa de la barra de tareas. Minimizar y cerrar desde el mini reproductor.</li>
+          <li>Atajos de teclado: espacio, Ctrl+←/→ (canción), Ctrl+↑/↓ (volumen), Mayús+←/→ (5 s); en el mini, las flechas solas.</li>
+          <li>Con tu servidor, los ajustes de sonido, ecualizador, radio y calidad son los mismos en todos tus dispositivos.</li>
+          <li>Ajustes en apartados, y botones de listas, artistas y discos más claros (lo menos usado, en «···»).</li>
+        </ul>
+        <h3 class="rd-news-h">Novedades de la 0.3.1</h3>
+        <ul class="rd-news">
+          <li>Mini reproductor: la letra (en el sitio de la portada) y el volumen, también en la barra pequeña, donde la rueda del ratón lo sube y lo baja.</li>
+        </ul>
+        <h3 class="rd-news-h">Novedades de la 0.3.0</h3>
+        <ul class="rd-news">
+          <li>Mini reproductor (el botón junto al volumen): la app se hace una tarjeta siempre encima, donde la quieras, con la portada, los controles, la cola, tus listas y tus artistas. Con la flecha, aún más pequeña: una barra como el widget del móvil. Recuerda dónde y cómo la dejaste.</li>
+          <li>Inicio: lo que más escuchas (tus listas y artistas), en grande y a un clic.</li>
+          <li>Información de la canción (ⓘ en el reproductor): todos sus artistas, su disco, la fecha, el ritmo y la discográfica.</li>
+          <li>Tema claro, oscuro o el de Windows (Ajustes › Apariencia).</li>
+          <li>La cola, la letra y los dispositivos, dentro de la ventana; «Suena en otro dispositivo» solo cuando otro de tus dispositivos está sonando.</li>
+        </ul>
+        <h3 class="rd-news-h">Novedades de la 0.2.1</h3>
+        <ul class="rd-news">
+          <li>Se actualiza sola si no la instalaste con PC Toolkit: baja la versión nueva y la instala al cerrar (o al pulsar «Reiniciar ahora»).</li>
+          <li>Servidor propio se conecta con tu contraseña de siempre: la app se crea una contraseña de aplicación para este equipo y no guarda la tuya.</li>
+        </ul>
+        <h3 class="rd-news-h">Novedades de la 0.2.0</h3>
+        <ul class="rd-news">
+          <li>Bibliotecas: añade tu Navidrome (o cualquier servidor Subsonic) o tu Jellyfin y sus canciones se juntan con las de este equipo.</li>
+          <li>Conecta tu servidor de El Reproductor (Ajustes › Servidor) y verás toda la música de tu nube, que suena al momento sin bajarla entera. Lo que bajas va a tu nube.</li>
+          <li>Este equipo es uno más de tus dispositivos: pásale lo que suena en el móvil o en la web, o llévatelo de aquí.</li>
+          <li>Guarda discos y listas de tu nube en este equipo para escucharlos sin conexión; una lista «mantenida» guarda sola lo que le añadas.</li>
+        </ul>
+        <h3 class="rd-news-h">Novedades de la 0.1.0</h3>
+        <ul class="rd-news">
+          <li>La música de tus carpetas, por artistas, discos y carpetas, con sus portadas y sus letras (de un .lrc o de LRCLIB).</li>
+          <li>Con el motor de descargas: El Reproductor como en El Archivador. Busca artistas, discos y canciones aunque no los tengas, sigue a tus artistas, baja discos y canciones a este equipo y haz listas que se completan solas.</li>
+          <li>Las teclas multimedia del teclado, abrir canciones desde el Explorador y soltar canciones o carpetas en la ventana.</li>
+        </ul>
+      </section>
+    </template>
+  </SettingsMenu>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { LibrariesSettings, type DeviceLibrary, type LocalEngine, type RemoteLibraries } from 'reproductor-player'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { EqualizerPanel, LibrariesSettings, PlaybackSettings, SettingsMenu, SoundSettings, playbackSummary, eqSummary, soundSummary, type DeviceLibrary, type LocalEngine, type RemoteLibraries } from 'reproductor-player'
 import type { Connection } from './lib/server'
+import { background } from './lib/media'
 import { theme, type Theme } from './lib/theme'
 
 const themes: { value: Theme; label: string }[] = [{ value: 'system', label: 'Sistema' }, { value: 'light', label: 'Claro' }, { value: 'dark', label: 'Oscuro' }]
@@ -169,6 +200,18 @@ async function updateYtdlp() {
 }
 onMounted(async () => { await props.engine.refresh().catch(() => {}); if (es.status?.installed) props.engine.findLatest() })
 const lib = props.device.state
+/** Ajustes' parts, each with a line of how it is now */
+const sections = computed(() => [
+  { key: 'music', title: 'Tu música', icon: 'rp-i-folder', note: `${lib.roots.length} ${lib.roots.length === 1 ? 'carpeta' : 'carpetas'} · ${lib.tracks.length} canciones` },
+  { key: 'sound', title: 'Sonido', icon: 'rp-i-volume', note: soundSummary.value },
+  { key: 'eq', title: 'Ecualizador', icon: 'rp-i-equalizer', note: eqSummary.value },
+  { key: 'playback', title: 'Reproducción', icon: 'rp-i-play', note: playbackSummary.value },
+  { key: 'downloads', title: 'Descargas', icon: 'rp-i-download', note: es.status?.installed ? `Motor ${es.status.installed.replace(/^motor-v/, '')}` : 'Motor sin instalar' },
+  { key: 'server', title: 'Servidor', icon: 'rp-i-cloud', note: props.server ? `Conectado a ${props.server.name || props.server.url.replace(/^https?:\/\//, '')}` : 'Sin conectar' },
+  { key: 'window', title: 'Ventana', icon: 'rp-i-computer', note: background.value ? 'Sigue sonando al cerrar' : 'Se cierra del todo' },
+  { key: 'look', title: 'Apariencia', icon: 'rp-i-palette', note: themes.find((t) => t.value === theme.value)?.label },
+  { key: 'about', title: 'El Reproductor', icon: 'rp-i-info', note: `Versión ${props.version || '—'}` }
+])
 const countIn = (root: string) => { const r = root.toLowerCase(); return lib.tracks.filter((t) => t.path.toLowerCase().startsWith(r)).length }
 async function add() { try { await props.device.backend.addRoot() } catch (err: any) { lib.error = err?.message || String(err) } }
 async function remove(root: string) {

@@ -7,6 +7,7 @@ mod cloud;
 mod engine;
 mod library;
 mod updater;
+mod window;
 
 use std::path::Path;
 
@@ -53,12 +54,9 @@ fn launch_path(launch: State<'_, Launch>) -> Option<String> {
     launch.0.lock().unwrap().take()
 }
 
-/// Brings the window to the front (a second launch of the app, with a song to play).
+/// Brings the window to the front (a second launch of the app, with a song to play; also from the tray).
 fn focus<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
+    window::show(app);
 }
 
 /// This computer's name (what the other devices of the user see it as).
@@ -85,6 +83,18 @@ pub fn run() {
         .manage(cloud::Cloud::default())
         .manage(cloud::Offline::default())
         .manage(updater::Updater::default())
+        .manage(window::Media::default())
+        .on_window_event(window::on_event)
+        // the page asks the microphone only so the system names its outputs (Ajustes › Sonido › Salida): it is let go
+        // at once and nothing is recorded; without it, the output cannot be chosen
+        .on_permission_request(|_, kind| match kind {
+            tauri::webview::PermissionKind::Microphone => tauri::webview::PermissionResponse::Allow,
+            _ => tauri::webview::PermissionResponse::Default,
+        })
+        .setup(|app| {
+            window::install(app.handle());
+            Ok(())
+        })
         .manage(Launch(std::sync::Mutex::new(file_argument(std::env::args()))))
         .register_asynchronous_uri_scheme_protocol("media", library::serve)
         .invoke_handler(tauri::generate_handler![
@@ -94,7 +104,8 @@ pub fn run() {
             engine::motor_status, engine::motor_latest, engine::motor_install, engine::motor_update_ytdlp, engine::motor_set_music_dir,
             engine::motor_start, engine::motor_stop, engine::motor_open_music_dir, engine::music_list, engine::music_remove,
             cloud::cloud_set, cloud::cloud_list, cloud::cloud_remove, cloud::offline_have, cloud::offline_get, cloud::offline_remove,
-            updater::update_check, updater::update_install
+            updater::update_check, updater::update_install,
+            window::set_background, window::media_state
         ])
         .build(tauri::generate_context!())
         .expect("error while running El Reproductor")

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the web view may do: the settings file, open links outside, pick folders, the window itself (its light or dark theme, and made the mini player: its size, place, frame, always on top, dragged), and requests to any http or https server (any port) made by Rust",
+  "description": "What the web view may do: the settings file, open links outside, pick folders, the window itself (its light or dark theme, and made the mini player: its size, place, frame, always on top, dragged, minimized and closed from its own buttons), and requests to any http or https server (any port) made by Rust",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -15,6 +15,8 @@
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
     "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
     "store:default",
     "opener:default",
     "dialog:allow-open",

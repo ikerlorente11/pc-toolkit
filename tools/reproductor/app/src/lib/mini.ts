@@ -98,6 +98,9 @@ export function desktopMini(on: (mini: boolean) => void): MiniWindow {
       if (was.maximized) await win.maximize()
       on(false)
     },
+    /** the card has no frame: its own buttons minimize and close (closing may leave it in the tray: window.rs) */
+    minimize() { win.minimize().catch(() => {}) },
+    close() { win.close().catch(() => {}) },
     get compact() { return compact },
     async setCompact(on: boolean) {
       compact = on

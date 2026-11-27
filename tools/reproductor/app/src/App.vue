@@ -27,6 +27,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { addRoot, desktopDevice, mediaUrl, openFile } from './lib/device'
 import { desktopEngine } from './lib/engine'
+import { startMedia } from './lib/media'
 import { desktopMini } from './lib/mini'
 import { desktopOffline } from './lib/offline'
 import { connect, disconnect, savedConnection, type Connection, type Server } from './lib/server'
@@ -153,6 +154,7 @@ async function playPath(path: string) {
 const dropping = ref(false)
 let unlisten: (() => void)[] = []
 onMounted(async () => {
+  startMedia()
   window.addEventListener('popstate', onPop)
   document.addEventListener('click', onLink, true)
   version.value = await getVersion().catch(() => '')
